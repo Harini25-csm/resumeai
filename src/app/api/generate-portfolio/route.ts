@@ -2,13 +2,21 @@ import { NextRequest, NextResponse } from 'next/server'
 
 export async function POST(request: NextRequest) {
   try {
-    const { repos, linkedinData, githubUsername } = await request.json()
+    console.log('Portfolio generation API called')
+    
+    const body = await request.json()
+    console.log('Request body:', JSON.stringify(body, null, 2))
+    
+    const { repos, linkedinData, githubUsername } = body
     
     if (!repos || repos.length === 0) {
+      console.log('No repos provided')
       return NextResponse.json({ error: 'Repositories are required' }, { status: 400 })
     }
 
     console.log('Generating portfolio for:', githubUsername || 'user')
+    console.log('Number of repos:', repos.length)
+    console.log('LinkedIn data available:', !!linkedinData)
     console.log('Using reliable fallback portfolio generation')
     
     // Always use the reliable fallback for production consistency
@@ -19,8 +27,8 @@ export async function POST(request: NextRequest) {
     
     // Fallback to basic portfolio generation on error
     try {
-      const { repos, linkedinData, githubUsername } = await request.json()
-      return generateFallbackPortfolio(repos, linkedinData, githubUsername)
+      const body = await request.json()
+      return generateFallbackPortfolio(body.repos, body.linkedinData, body.githubUsername)
     } catch {
       return NextResponse.json({ error: 'Failed to parse request' }, { status: 400 })
     }

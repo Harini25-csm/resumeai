@@ -2,9 +2,15 @@ import { NextRequest, NextResponse } from 'next/server'
 
 export async function POST(request: NextRequest) {
   try {
-    const { profile } = await request.json()
+    console.log('LinkedIn API called')
+    
+    const body = await request.json()
+    console.log('LinkedIn request body:', JSON.stringify(body, null, 2))
+    
+    const { profile } = body
     
     if (!profile) {
+      console.log('No profile provided')
       return NextResponse.json({ error: 'Profile URL is required' }, { status: 400 })
     }
 
@@ -18,16 +24,22 @@ export async function POST(request: NextRequest) {
     // Always use the fast, reliable fallback for MITS student
     // This ensures consistent, instant response every time
     return generateFallbackLinkedInProfile(username)
+    
   } catch (error) {
     console.error('LinkedIn API error:', error)
     
     // Fallback to mock profile generation on error
-    const { profile } = await request.json()
-    const username = profile.includes('linkedin.com') 
-      ? profile.split('linkedin.com/in/')[1]?.split('/')[0] || profile
-      : profile
-    
-    return generateFallbackLinkedInProfile(username)
+    try {
+      const body = await request.json()
+      const { profile } = body
+      const username = profile.includes('linkedin.com') 
+        ? profile.split('linkedin.com/in/')[1]?.split('/')[0] || profile
+        : profile
+      
+      return generateFallbackLinkedInProfile(username)
+    } catch {
+      return NextResponse.json({ error: 'Failed to parse request' }, { status: 400 })
+    }
   }
 }
 

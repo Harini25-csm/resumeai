@@ -44,19 +44,42 @@ function LoginPageContent() {
     if (!supabaseClient) return
     setGoogleLoading(true)
     setError('')
+
     try {
+      // Check environment variables
+      const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+      const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+      
+      console.log('Environment check:')
+      console.log('- Supabase URL:', supabaseUrl ? '✅ Set' : '❌ Missing')
+      console.log('- Supabase Key:', supabaseKey ? '✅ Set' : '❌ Missing')
+      
+      if (!supabaseUrl || !supabaseKey) {
+        setError('Authentication service not properly configured. Please contact support.')
+        return
+      }
+      
+      // Get the current origin for proper redirect
+      const origin = typeof window !== 'undefined' ? window.location.origin : (process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000')
+      console.log('OAuth redirect origin:', origin)
+      
       const { error } = await supabaseClient.auth.signInWithOAuth({
         provider: 'google',
         options: {
-          redirectTo: `${window.location.origin}/auth/callback-client`,
+          redirectTo: `${origin}/auth/callback-client`,
           skipBrowserRedirect: false
         }
       })
+      
       if (error) {
-        setError('Google login failed')
+        console.error('Google OAuth error:', error)
+        setError(error.message || 'Google login failed')
+      } else {
+        console.log('Google OAuth initiated successfully')
       }
     } catch (err: any) {
-      setError('Google login failed')
+      console.error('Google login error:', err)
+      setError('Google login failed. Please try again.')
     } finally {
       setGoogleLoading(false)
     }
