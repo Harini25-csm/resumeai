@@ -222,6 +222,12 @@ export default function PortfolioGenerator() {
   const downloadPortfolio = () => {
     if (!portfolioData) return
     
+    // Get the proper name from contact or portfolio data
+    const displayName = portfolioData.contact?.linkedin || 
+                       portfolioData.contact?.name || 
+                       portfolioData.name || 
+                       'Portfolio'
+    
     // Create HTML content for portfolio
     const portfolioHTML = `
 <!DOCTYPE html>
@@ -229,7 +235,7 @@ export default function PortfolioGenerator() {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>${portfolioData.contact?.linkedin || 'Portfolio'} - Portfolio</title>
+    <title>${displayName} - Portfolio</title>
     <style>
         body { font-family: Arial, sans-serif; line-height: 1.6; max-width: 800px; margin: 0 auto; padding: 20px; }
         .header { text-align: center; margin-bottom: 40px; }
@@ -248,7 +254,7 @@ export default function PortfolioGenerator() {
 </head>
 <body>
     <div class="header">
-        <h1>${portfolioData.contact?.linkedin || 'Portfolio'}</h1>
+        <h1>${displayName}</h1>
         <p>${portfolioData.introduction || 'Professional Portfolio'}</p>
     </div>
     
@@ -316,7 +322,7 @@ export default function PortfolioGenerator() {
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
     a.href = url
-    a.download = `${portfolioData.contact?.linkedin || 'portfolio'}-portfolio.html`
+    a.download = `${displayName.replace(/\s+/g, '-').toLowerCase()}-portfolio.html`
     document.body.appendChild(a)
     a.click()
     document.body.removeChild(a)

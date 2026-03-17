@@ -52,7 +52,7 @@ export default function CallbackClient() {
           console.log('No session found, redirecting to login')
           window.location.replace('/auth/login?error=no_session')
         }
-      }).catch((err) => {
+      }).catch((err: any) => {
         console.error('Session check error:', err)
         window.location.replace('/auth/login?error=session_check_failed')
       })
