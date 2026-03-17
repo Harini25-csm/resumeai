@@ -1,10 +1,12 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { useSearchParams } from 'next/navigation'
 import { motion } from 'framer-motion'
 import { Mail, Lock, ArrowRight, Eye, EyeOff } from 'lucide-react'
 
 export default function LoginPage() {
+  const searchParams = useSearchParams()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
@@ -14,11 +16,29 @@ export default function LoginPage() {
   const [supabaseClient, setSupabaseClient] = useState<any>(null)
 
   useEffect(() => {
+    // Check for OAuth errors in URL parameters
+    const oauthError = searchParams.get('error')
+    const description = searchParams.get('description')
+    
+    if (oauthError) {
+      let errorMessage = 'Authentication failed'
+      if (oauthError === 'access_denied') {
+        errorMessage = 'Access denied. Please try again.'
+      } else if (oauthError === 'session_failed') {
+        errorMessage = 'Failed to establish session. Please try logging in again.'
+      } else if (oauthError === 'no_session') {
+        errorMessage = 'No session found. Please log in.'
+      } else if (description) {
+        errorMessage = description
+      }
+      setError(errorMessage)
+    }
+
     // Dynamically import Supabase client only on client side
     import('@/lib/supabase/client').then(({ createClient }) => {
       setSupabaseClient(createClient())
     })
-  }, [])
+  }, [searchParams])
 
   const handleGoogleLogin = async () => {
     if (!supabaseClient) return

@@ -39,17 +39,17 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    promptContent += `\nGitHub Username: ${githubUsername}\n\nReturn JSON with this structure:
+    promptContent += `\nGitHub Username: ${githubUsername}\n\nIMPORTANT: Generate a STUDENT-FOCUSED portfolio. The person is currently studying computer science, not an experienced professional.\n\nReturn JSON with this structure:
 {
-  "introduction": "Professional introduction that combines GitHub projects and LinkedIn experience",
-  "about": "Detailed about section combining professional background and technical expertise",
-  "skills": ["Technical and professional skills"],
-  "experience": [{"title": "Role", "company": "Company", "duration": "Duration", "description": "Description combining GitHub contributions and LinkedIn experience"}],
-  "projects": [{"name": "Project Name", "description": "Enhanced description that connects to professional experience", "technologies": ["Tech stack"], "highlights": ["Key achievements"]}],
+  "introduction": "Student-focused introduction combining GitHub projects and academic background",
+  "about": "About section emphasizing learning, academic projects, and skill development",
+  "skills": ["Technical and learning-focused skills"],
+  "experience": [{"title": "Student Role", "company": "University/Academic", "duration": "Student timeline", "description": "Description focused on learning and academic projects"}],
+  "projects": [{"name": "Project Name", "description": "Academic/learning-focused description", "technologies": ["Tech stack"], "highlights": ["Learning achievements"]}],
   "contact": {
     "github": "${githubUsername}",
-    "linkedin": "${linkedinData?.name || 'Professional'}",
-    "email": "contact@example.com"
+    "linkedin": "${linkedinData?.name || 'Computer Science Student'}",
+    "email": "student@example.com"
   }
 }`
 
@@ -57,7 +57,7 @@ export async function POST(request: NextRequest) {
       model: 'llama-3.3-70b-versatile',
       messages: [{
         role: 'system',
-        content: 'You are an expert portfolio writer. Create a comprehensive, professional portfolio that combines GitHub projects and LinkedIn experience to showcase the developer\'s full professional profile. Make it compelling, detailed, and suitable for attracting employers or clients.'
+        content: 'You are an expert portfolio writer. Create a comprehensive, student-focused portfolio that combines GitHub projects and LinkedIn data to showcase a computer science student\'s learning journey and technical skills. Emphasize academic growth, learning, and potential rather than extensive professional experience. Make it compelling for internships, entry-level positions, or academic opportunities.'
       }, {
         role: 'user',
         content: promptContent
@@ -109,39 +109,39 @@ function generateFallbackPortfolio(repos: any[], linkedinData: any, githubUserna
   
   const portfolio = {
     introduction: linkedinData?.summary || 
-      `Passionate developer with expertise in ${allSkills.slice(0, 3).join(', ')}. ` +
-      `Contributed to ${repos.length} open-source projects on GitHub with a focus on ` +
-      `building innovative solutions and modern web applications.`,
+      `Computer Science student with expertise in ${allSkills.slice(0, 3).join(', ')}. ` +
+      `Building ${repos.length} open-source projects while learning modern web technologies and ` +
+      `developing strong foundations in software engineering.`,
     
     about: linkedinData?.summary || 
-      `I am a dedicated developer with a strong background in ${allSkills.slice(0, 2).join(' and ')}. ` +
-      `With ${repos.length} projects on GitHub, I demonstrate consistent contributions to the ` +
-      `open-source community and a passion for solving complex problems through code.`,
+      `I am a passionate Computer Science student focused on ${allSkills.slice(0, 2).join(' and ')}. ` +
+      `Through my ${repos.length} GitHub projects, I'm developing practical skills in ` +
+      `full-stack development and contributing to the open-source community while pursuing my degree.`,
     
     skills: allSkills.slice(0, 8),
     
     experience: linkedinData?.experience || [{
-      title: "Full-Stack Developer",
-      company: "Open Source Community",
-      duration: "Present",
-      description: `Developing and maintaining ${repos.length} open-source projects with focus on ${allSkills.slice(0, 3).join(', ')}`
+      title: "Student Developer",
+      company: "University Projects",
+      duration: "2023 - Present",
+      description: `Developing ${repos.length} projects using ${allSkills.slice(0, 3).join(', ')} to build practical software engineering skills while pursuing Computer Science degree.`
     }],
     
     projects: repos.map(repo => ({
       name: repo.name,
-      description: repo.description || `A ${repo.language || 'software'} project showcasing technical skills and problem-solving abilities.`,
+      description: repo.description || `A ${repo.language || 'software'} project developed as part of my learning journey and academic exploration.`,
       technologies: [repo.language, 'JavaScript', 'Git'].filter(Boolean),
       highlights: [
-        `${repo.stars} stars on GitHub`,
-        `Built with ${repo.language || 'modern technologies'}`,
-        'Open source contribution'
+        `Academic project showcasing ${repo.language || 'programming'} skills`,
+        `Built with modern ${repo.language || 'web'} technologies`,
+        'Student open-source contribution'
       ]
     })),
     
     contact: {
       github: githubUsername,
-      linkedin: linkedinData?.name || 'Professional Developer',
-      email: 'contact@example.com'
+      linkedin: linkedinData?.name || 'Computer Science Student',
+      email: 'student@example.com'
     }
   }
   

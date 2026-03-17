@@ -1,12 +1,38 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { useRouter } from 'next/navigation'
 import { motion } from 'framer-motion'
 import Link from 'next/link'
 import { ArrowRight, Sparkles, Zap, Shield, Target, FileText, Github, Star } from 'lucide-react'
 
 export default function LandingPage() {
   const [scrolled, setScrolled] = useState(false)
+  const [user, setUser] = useState<any>(null)
+  const [loading, setLoading] = useState(true)
+  const router = useRouter()
+
+  useEffect(() => {
+    const checkAuth = async () => {
+      try {
+        const { createClient } = await import('@/lib/supabase/client')
+        const supabase = createClient()
+        const { data: { session } } = await supabase.auth.getSession()
+        
+        if (session) {
+          setUser(session.user)
+          // If user is logged in, redirect to dashboard
+          router.replace('/dashboard')
+        }
+      } catch (error) {
+        console.error('Auth check failed:', error)
+      } finally {
+        setLoading(false)
+      }
+    }
+    
+    checkAuth()
+  }, [router])
 
   useEffect(() => {
     const handleScroll = () => {
@@ -16,6 +42,36 @@ export default function LandingPage() {
     window.addEventListener('scroll', handleScroll)
     return () => window.removeEventListener('scroll', handleScroll)
   }, [])
+
+  // Show loading while checking authentication
+  if (loading) {
+    return (
+      <div style={{ 
+        display: 'flex', 
+        justifyContent: 'center', 
+        alignItems: 'center', 
+        height: '100vh',
+        flexDirection: 'column',
+        gap: '1rem'
+      }}>
+        <div style={{ 
+          width: '40px', 
+          height: '40px', 
+          border: '4px solid #3B82F6', 
+          borderTopColor: 'transparent', 
+          borderRadius: '50%', 
+          animation: 'spin 0.8s linear infinite' 
+        }}/>
+        <p style={{ color: '#6B7280', fontSize: '1rem' }}>Loading...</p>
+        <style>{`@keyframes spin { to { transform: rotate(360deg) } }`}</style>
+      </div>
+    )
+  }
+
+  // If user is logged in, don't show landing page
+  if (user) {
+    return null
+  }
 
   return (
     <div style={{ minHeight: '100vh', background: 'linear-gradient(to bottom right, #e0e7ff, #f3e7ff)' }}>
