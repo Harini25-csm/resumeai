@@ -12,15 +12,37 @@ export default function Dashboard() {
 
   useEffect(() => {
   const supabase = createClient()
-  supabase.auth.getSession().then(({ data: { session } }: { data: { session: any } }) => {
-    if (!session) {
-      window.location.href = '/auth/login'
-      return
+  let retryCount = 0
+  const maxRetries = 3
+  
+  const checkSession = async () => {
+    try {
+      console.log(`Checking session, attempt ${retryCount + 1}/${maxRetries}`)
+      const { data: { session } }: { data: { session: any } } = await supabase.auth.getSession()
+      console.log('Session result:', !!session)
+      if (session) {
+        console.log('Session found, setting user:', session.user.email)
+        setUser(session.user)
+      } else if (retryCount < maxRetries) {
+        retryCount++
+        console.log('Session not found, retrying...')
+        setTimeout(checkSession, 500) // Retry after 500ms
+      } else {
+        console.log('Max retries reached, redirecting to login')
+        window.location.href = '/auth/login'
+      }
+    } catch (error) {
+      console.error('Session check error:', error)
+      if (retryCount < maxRetries) {
+        retryCount++
+        setTimeout(checkSession, 500)
+      } else {
+        window.location.href = '/auth/login'
+      }
     }
-    setUser(session.user)
-  }).catch(() => {
-    window.location.href = '/auth/login'
-  })
+  }
+  
+  checkSession()
 }, [])
 
 useEffect(() => {

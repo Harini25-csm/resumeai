@@ -1,22 +1,31 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
 import { Mail, Lock, ArrowRight, Eye, EyeOff } from 'lucide-react'
-import { supabase } from '@/lib/supabase'
 
 export default function LoginPage() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
-  const [loading, setLoading] = useState(false)
+  const [emailLoading, setEmailLoading] = useState(false)
+  const [googleLoading, setGoogleLoading] = useState(false)
   const [error, setError] = useState('')
+  const [supabaseClient, setSupabaseClient] = useState<any>(null)
+
+  useEffect(() => {
+    // Dynamically import Supabase client only on client side
+    import('@/lib/supabase/client').then(({ createClient }) => {
+      setSupabaseClient(createClient())
+    })
+  }, [])
 
   const handleGoogleLogin = async () => {
-    setLoading(true)
+    if (!supabaseClient) return
+    setGoogleLoading(true)
     setError('')
     try {
-      const { error } = await supabase.auth.signInWithOAuth({
+      const { error } = await supabaseClient.auth.signInWithOAuth({
         provider: 'google',
         options: {
           redirectTo: `${window.location.origin}/auth/callback-client`,
@@ -29,30 +38,46 @@ export default function LoginPage() {
     } catch (err: any) {
       setError('Google login failed')
     } finally {
-      setLoading(false)
+      setGoogleLoading(false)
     }
   }
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
-    setLoading(true)
+    if (!supabaseClient) return
+    setEmailLoading(true)
     setError('')
 
     try {
-      const { data, error } = await supabase.auth.signInWithPassword({
+      // Debug: Check if environment variables are loaded
+      console.log('Supabase URL:', process.env.NEXT_PUBLIC_SUPABASE_URL)
+      console.log('Supabase Key exists:', !!process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY)
+      
+      const { data, error } = await supabaseClient.auth.signInWithPassword({
         email,
         password,
       })
 
       if (error) {
+        console.error('Login error:', error)
         setError(error.message)
       } else {
-        window.location.href = '/dashboard'
+        console.log('Login successful, checking session...')
+        // Wait for session to be established
+        const { data: { session } } = await supabaseClient.auth.getSession()
+        console.log('Session check result:', !!session)
+        if (session) {
+          console.log('Redirecting to dashboard...')
+          window.location.href = '/dashboard'
+        } else {
+          setError('Login successful but session not established. Please try again.')
+        }
       }
     } catch (err: any) {
+      console.error('Unexpected error:', err)
       setError('An unexpected error occurred')
     } finally {
-      setLoading(false)
+      setEmailLoading(false)
     }
   }
 
@@ -119,7 +144,7 @@ export default function LoginPage() {
 
         <button
           onClick={handleGoogleLogin}
-          disabled={loading}
+          disabled={googleLoading || !supabaseClient}
           style={{
             width: '100%',
             backgroundColor: 'white',
@@ -129,7 +154,7 @@ export default function LoginPage() {
             fontSize: '1rem',
             fontWeight: '500',
             border: '1px solid #d1d5db',
-            cursor: loading ? 'not-allowed' : 'pointer',
+            cursor: (googleLoading || !supabaseClient) ? 'not-allowed' : 'pointer',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
@@ -138,13 +163,13 @@ export default function LoginPage() {
             marginBottom: '1.5rem'
           }}
           onMouseOver={(e) => {
-            if (!loading) {
+            if (!googleLoading && supabaseClient) {
               e.currentTarget.style.backgroundColor = '#f9fafb'
               e.currentTarget.style.borderColor = '#9ca3af'
             }
           }}
           onMouseOut={(e) => {
-            if (!loading) {
+            if (!googleLoading && supabaseClient) {
               e.currentTarget.style.backgroundColor = 'white'
               e.currentTarget.style.borderColor = '#d1d5db'
             }
@@ -164,7 +189,7 @@ export default function LoginPage() {
           }}>
             G
           </div>
-          {loading ? 'Signing in...' : 'Continue with Google'}
+          {googleLoading ? 'Signing in...' : 'Continue with Google'}
         </button>
 
         <form onSubmit={handleLogin}>
@@ -194,7 +219,7 @@ export default function LoginPage() {
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="Enter your email"
                 required
-                disabled={loading}
+                disabled={emailLoading}
                 style={{
                   width: '100%',
                   padding: '0.75rem 1rem 0.75rem 2.5rem',
@@ -203,7 +228,7 @@ export default function LoginPage() {
                   fontSize: '0.875rem',
                   outline: 'none',
                   transition: 'border-color 0.2s',
-                  opacity: loading ? 0.6 : 1
+                  opacity: emailLoading ? 0.6 : 1
                 }}
                 onFocus={(e) => {
                   e.target.style.borderColor = '#667eea'
@@ -241,7 +266,7 @@ export default function LoginPage() {
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="Enter your password"
                 required
-                disabled={loading}
+                disabled={emailLoading}
                 style={{
                   width: '100%',
                   padding: '0.75rem 1rem 0.75rem 2.5rem',
@@ -250,7 +275,7 @@ export default function LoginPage() {
                   fontSize: '0.875rem',
                   outline: 'none',
                   transition: 'border-color 0.2s',
-                  opacity: loading ? 0.6 : 1
+                  opacity: emailLoading ? 0.6 : 1
                 }}
                 onFocus={(e) => {
                   e.target.style.borderColor = '#667eea'
@@ -262,7 +287,7 @@ export default function LoginPage() {
               <button
                 type="button"
                 onClick={() => setShowPassword(!showPassword)}
-                disabled={loading}
+                disabled={emailLoading}
                 style={{
                   position: 'absolute',
                   right: '0.75rem',
@@ -270,7 +295,7 @@ export default function LoginPage() {
                   transform: 'translateY(-50%)',
                   background: 'none',
                   border: 'none',
-                  cursor: loading ? 'not-allowed' : 'pointer',
+                  cursor: emailLoading ? 'not-allowed' : 'pointer',
                   padding: 0,
                   color: '#9ca3af'
                 }}
@@ -295,17 +320,17 @@ export default function LoginPage() {
 
           <button
             type="submit"
-            disabled={loading}
+            disabled={emailLoading || !supabaseClient}
             style={{
               width: '100%',
-              backgroundColor: loading ? '#a0aec0' : '#667eea',
+              backgroundColor: (emailLoading || !supabaseClient) ? '#a0aec0' : '#667eea',
               color: 'white',
               padding: '0.875rem',
               borderRadius: '8px',
               fontSize: '1rem',
               fontWeight: '600',
               border: 'none',
-              cursor: loading ? 'not-allowed' : 'pointer',
+              cursor: (emailLoading || !supabaseClient) ? 'not-allowed' : 'pointer',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
@@ -313,7 +338,7 @@ export default function LoginPage() {
               transition: 'background-color 0.2s'
             }}
           >
-            {loading ? 'Signing in...' : (
+            {emailLoading ? 'Signing in...' : (
               <>
                 Sign In
                 <ArrowRight style={{ width: '20px', height: '20px' }} />
