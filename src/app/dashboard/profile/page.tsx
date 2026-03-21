@@ -37,32 +37,51 @@ export default function ProfilePage() {
   useEffect(() => {
     // Check if user is authenticated before fetching profile
     const checkAuth = async () => {
-      try {
-        console.log('Profile page: Checking authentication...')
-        const { data: { session } } = await supabase.auth.getSession()
-        console.log('Profile page: Session check result:', !!session)
-        
-        if (!session) {
-          // User is not authenticated, show message and redirect
-          console.log('Profile page: User not authenticated, redirecting to login')
-          setError('Please log in to view your profile')
-          setLoading(false) // Stop loading state
-          // Give user more time to see the message
-          setTimeout(() => {
-            console.log('Profile page: Redirecting to login page...')
-            router.push('/auth/login')
-          }, 5000)
-          return
+      let retryCount = 0
+      const maxRetries = 3
+      
+      const attemptAuth = async () => {
+        try {
+          console.log(`Profile page: Checking authentication... Attempt ${retryCount + 1}/${maxRetries}`)
+          
+          // Try both getUser and getSession for better reliability
+          const { data: { session } } = await supabase.auth.getSession()
+          console.log('Profile page: Session check result:', !!session)
+          
+          if (session && session.user) {
+            console.log('Profile page: User authenticated, fetching profile...')
+            await fetchProfileForUser(session.user)
+            return
+          }
+          
+          // Fallback to getUser if session fails
+          const { data: { user } } = await supabase.auth.getUser()
+          console.log('Profile page: User fallback check:', !!user)
+          
+          if (user) {
+            console.log('Profile page: User authenticated via fallback, fetching profile...')
+            await fetchProfileForUser(user)
+            return
+          }
+          
+          throw new Error('No valid session or user found')
+          
+        } catch (error) {
+          console.error(`Profile page: Auth attempt ${retryCount + 1} failed:`, error)
+          retryCount++
+          
+          if (retryCount < maxRetries) {
+            console.log(`Profile page: Retrying in 1 second...`)
+            setTimeout(attemptAuth, 1000)
+          } else {
+            console.error('Profile page: Max retries reached, showing error')
+            setError('Authentication failed. Please check your connection and try refreshing the page.')
+            setLoading(false)
+          }
         }
-        
-        // User is authenticated, fetch profile
-        console.log('Profile page: User authenticated, fetching profile...')
-        await fetchProfileForUser(session.user)
-      } catch (error) {
-        console.error('Profile page: Auth check error:', error)
-        setError('Authentication error. Please try again.')
-        setLoading(false) // Stop loading state
       }
+      
+      await attemptAuth()
     }
     
     checkAuth()
