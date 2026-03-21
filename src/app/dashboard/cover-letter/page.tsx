@@ -11,7 +11,8 @@ export default function CoverLetterGenerator() {
     role: '',
     company: '',
     skills: '',
-    experience: ''
+    experience: '',
+    tone: 'professional'
   })
   
   const [coverLetter, setCoverLetter] = useState('')
@@ -38,9 +39,10 @@ export default function CoverLetterGenerator() {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        companyName: formData.company,
-        jobTitle: formData.role,
-        resumeData: JSON.parse(localStorage.getItem('resumeData') || '{}')
+        company: formData.company,
+        role: formData.role,
+        skills: formData.skills,
+        experience: formData.experience
       })
     })
     if (!response.ok) {
@@ -172,11 +174,31 @@ export default function CoverLetterGenerator() {
 
                 <div>
                   <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: '500', color: '#374151', marginBottom: '0.5rem' }}>
+                    Key Skills *
+                  </label>
+                  <input
+                    type="text"
+                    value={formData.skills}
+                    onChange={(e) => setFormData({...formData, skills: e.target.value})}
+                    placeholder="e.g., React, Node.js, TypeScript, AWS"
+                    style={{
+                      width: '100%',
+                      padding: '0.75rem',
+                      border: '1px solid #d1d5db',
+                      borderRadius: '8px',
+                      fontSize: '0.875rem',
+                      outline: 'none'
+                    }}
+                  />
+                </div>
+
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: '500', color: '#374151', marginBottom: '0.5rem' }}>
                     Tone
                   </label>
                   <select
                     value="professional"
-                    onChange={(e) => setFormData({...formData, skills: e.target.value})}
+                    onChange={(e) => setFormData({...formData, tone: e.target.value})}
                     style={{
                       width: '100%',
                       padding: '0.75rem',

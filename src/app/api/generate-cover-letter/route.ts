@@ -3,6 +3,31 @@ import Groq from 'groq-sdk';
 
 const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
 
+// Fallback cover letter generator when AI is unavailable
+function generateFallbackCoverLetter(role: string, company: string, skills: string, experience?: string): string {
+  const currentDate = new Date().toLocaleDateString('en-US', {
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric'
+  });
+
+  // Professional cover letter template
+  const letter = `Dear Hiring Manager,
+
+I am writing to express my strong interest in the ${role} position at ${company}. With my background in ${skills} and my experience${experience ? `, particularly in ${experience}` : ''}, I am confident in my ability to contribute effectively to your team.
+
+Throughout my career, I have developed strong skills in ${skills} and a proven track record of delivering high-quality results. I am particularly drawn to ${company} because of your commitment to innovation and excellence in the industry.
+
+I would welcome the opportunity to discuss how my qualifications align with your needs and how I can bring value to your organization. Thank you for considering my application.
+
+Sincerely,
+[Your Name]
+
+${currentDate}`;
+
+  return letter;
+}
+
 export async function POST(request: NextRequest) {
   try {
     const { role, company, skills, experience } = await request.json();
@@ -43,31 +68,45 @@ Make sure the cover letter is:
 - Free of generic cliches
 - Appropriate for the industry level`;
 
-    const completion = await groq.chat.completions.create({
-      messages: [
-        {
-          role: "system",
-          content: "You are an expert career counselor and professional writer. You create compelling, personalized cover letters that help candidates land interviews. Always respond in valid JSON format."
-        },
-        {
-          role: "user",
-          content: prompt
-        }
-      ],
-      model: "llama3-70b-8192",
-      temperature: 0.7,
-      max_tokens: 800,
-      response_format: { type: "json_object" }
-    });
+    let coverLetterData;
 
-    const responseContent = completion.choices[0]?.message?.content;
-    
-    if (!responseContent) {
-      throw new Error('No response from Groq API');
+    try {
+      // Try to use Groq API
+      const completion = await groq.chat.completions.create({
+        messages: [
+          {
+            role: "system",
+            content: "You are an expert career counselor and professional writer. You create compelling, personalized cover letters that help candidates land interviews. Always respond in valid JSON format."
+          },
+          {
+            role: "user",
+            content: prompt
+          }
+        ],
+        model: "llama3-70b-8192",
+        temperature: 0.7,
+        max_tokens: 800,
+        response_format: { type: "json_object" }
+      });
+
+      const responseContent = completion.choices[0]?.message?.content;
+      
+      if (!responseContent) {
+        throw new Error('No response from Groq API');
+      }
+
+      // Parse the JSON response
+      const parsedResponse = JSON.parse(responseContent);
+      coverLetterData = parsedResponse;
+
+    } catch (error) {
+      console.error('Groq API unavailable, using fallback:', error);
+      
+      // Fallback cover letter generation when Groq is unavailable
+      coverLetterData = {
+        coverLetter: generateFallbackCoverLetter(role, company, skills, experience)
+      };
     }
-
-    // Parse the JSON response
-    const coverLetterData = JSON.parse(responseContent);
 
     return NextResponse.json({
       success: true,

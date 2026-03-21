@@ -37,25 +37,39 @@ export default function ProfilePage() {
   useEffect(() => {
     // Check if user is authenticated before fetching profile
     const checkAuth = async () => {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) {
-        router.push('/dashboard') // Redirect to dashboard instead of login
-        return
+      try {
+        console.log('Profile page: Checking authentication...')
+        const { data: { session } } = await supabase.auth.getSession()
+        console.log('Profile page: Session check result:', !!session)
+        
+        if (!session) {
+          // User is not authenticated, show message and redirect
+          console.log('Profile page: User not authenticated, redirecting to login')
+          setError('Please log in to view your profile')
+          setLoading(false) // Stop loading state
+          // Give user more time to see the message
+          setTimeout(() => {
+            console.log('Profile page: Redirecting to login page...')
+            router.push('/auth/login')
+          }, 5000)
+          return
+        }
+        
+        // User is authenticated, fetch profile
+        console.log('Profile page: User authenticated, fetching profile...')
+        await fetchProfileForUser(session.user)
+      } catch (error) {
+        console.error('Profile page: Auth check error:', error)
+        setError('Authentication error. Please try again.')
+        setLoading(false) // Stop loading state
       }
-      fetchProfile()
     }
     
     checkAuth()
   }, [])
 
-  const fetchProfile = async () => {
+  const fetchProfileForUser = async (user: any) => {
     try {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) {
-        router.push('/auth/login')
-        return
-      }
-
       const { data, error } = await supabase
         .from('profiles')
         .select('*')
@@ -96,8 +110,6 @@ export default function ProfilePage() {
     } catch (error) {
       console.error('Error:', error)
       setError('An unexpected error occurred')
-    } finally {
-      setLoading(false)
     }
   }
 
