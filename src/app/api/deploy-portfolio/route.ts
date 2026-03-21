@@ -1,39 +1,271 @@
 import { NextResponse } from 'next/server'
-
-// This is a mock deployment API since we don't have actual Vercel API access
-// In a real implementation, you would use Vercel's Deploy API
+import { execSync } from 'child_process'
+import { writeFileSync, mkdirSync, existsSync } from 'fs'
+import { join } from 'path'
 
 export async function POST(req: Request) {
   try {
-    const { portfolioData } = await req.json()
+    const { portfolioData, githubToken, vercelToken } = await req.json()
     
     if (!portfolioData) {
       return NextResponse.json({ error: 'Missing portfolio data' }, { status: 400 })
     }
 
-    // Simulate deployment process
-    await new Promise(resolve => setTimeout(resolve, 3000)) // 3 second delay
+    // Create deployment directory
+    const deployDir = join(process.cwd(), 'deployments')
+    if (!existsSync(deployDir)) {
+      mkdirSync(deployDir, { recursive: true })
+    }
 
-    // Generate a mock Vercel URL
-    const randomId = Math.random().toString(36).substring(2, 15)
-    const deployUrl = `https://${randomId}-portfolio.vercel.app`
+    // Generate portfolio site files
+    const siteDir = join(deployDir, 'portfolio-site')
+    if (!existsSync(siteDir)) {
+      mkdirSync(siteDir, { recursive: true })
+    }
 
-    // In a real implementation, you would:
-    // 1. Create a new Next.js project with the portfolio data
-    // 2. Use Vercel's Deploy API to deploy it
-    // 3. Return the actual deployment URL
+    // Create package.json for the portfolio site
+    const packageJson = {
+      name: 'portfolio-site',
+      version: '1.0.0',
+      private: true,
+      scripts: {
+        dev: 'next dev',
+        build: 'next build',
+        start: 'next start'
+      },
+      dependencies: {
+        next: '14.2.35',
+        react: '^18',
+        'react-dom': '^18',
+        'lucide-react': '^0.263.1'
+      }
+    }
+
+    writeFileSync(join(siteDir, 'package.json'), JSON.stringify(packageJson, null, 2))
+
+    // Generate portfolio HTML page
+    const htmlContent = generatePortfolioHTML(portfolioData)
+    writeFileSync(join(siteDir, 'app', 'page.tsx'), generateNextJSPage(portfolioData))
+    writeFileSync(join(siteDir, 'next.config.js'), generateNextConfig())
+
+    // Instructions for manual deployment
+    const instructions = `
+=== PORTFOLIO DEPLOYMENT INSTRUCTIONS ===
+
+Your portfolio has been generated! To deploy to Vercel:
+
+OPTION 1: EASIEST - Vercel CLI
+1. Install Vercel CLI: npm i -g vercel
+2. cd ${siteDir}
+3. Run: vercel --prod
+4. Follow the prompts to deploy
+
+OPTION 2: GitHub + Vercel (Recommended)
+1. Push your portfolio to GitHub:
+   cd ${siteDir}
+   git init
+   git add .
+   git commit -m "Add portfolio site"
+   git branch -M main
+   git remote add origin https://github.com/YOUR_USERNAME/portfolio.git
+   git push -u origin main
+
+2. Connect to Vercel:
+   - Go to vercel.com
+   - Click "New Project"
+   - Import your GitHub repository
+   - Deploy automatically
+
+OPTION 3: Manual Upload
+1. Build the site: cd ${siteDir} && npm run build
+2. Upload the 'out' folder to any hosting service
+
+Generated portfolio files are ready at: ${siteDir}
+`
 
     return NextResponse.json({
-      url: deployUrl,
-      deploymentId: `dpl_${randomId}`,
-      status: 'ready'
+      success: true,
+      message: 'Portfolio site generated successfully',
+      instructions: instructions.trim(),
+      sitePath: siteDir,
+      nextSteps: [
+        '1. The portfolio site has been generated in the deployments folder',
+        '2. Use Vercel CLI for easiest deployment: vercel --prod',
+        '3. Or push to GitHub and connect to Vercel for automatic deployments',
+        '4. Your portfolio includes all your projects with enhanced descriptions'
+      ]
     })
 
   } catch (error) {
     console.error('Deployment error:', error)
     return NextResponse.json(
-      { error: 'Failed to deploy portfolio' },
+      { error: 'Failed to generate portfolio for deployment' },
       { status: 500 }
     )
   }
+}
+
+function generatePortfolioHTML(portfolioData: any) {
+  return `
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>${portfolioData.contact?.name || 'Portfolio'} - Professional Portfolio</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+</head>
+<body class="bg-gray-50">
+    <div class="min-h-screen">
+        <!-- Header -->
+        <header class="bg-white shadow-sm border-b">
+            <div class="max-w-6xl mx-auto px-4 py-6">
+                <h1 class="text-3xl font-bold text-gray-900">${portfolioData.contact?.name || 'Your Name'}</h1>
+                <p class="text-gray-600 mt-2">${portfolioData.introduction || 'Professional Portfolio'}</p>
+            </div>
+        </header>
+
+        <!-- Main Content -->
+        <main class="max-w-6xl mx-auto px-4 py-8">
+            <!-- Contact Section -->
+            <section class="bg-white rounded-lg shadow-md p-6 mb-8">
+                <h2 class="text-2xl font-bold mb-4">Contact Information</h2>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div><strong>Email:</strong> ${portfolioData.contact?.email || 'your.email@example.com'}</div>
+                    <div><strong>Phone:</strong> ${portfolioData.contact?.phone || 'Your Phone'}</div>
+                    <div><strong>Address:</strong> ${portfolioData.contact?.address || 'Your Address'}</div>
+                    <div><strong>LinkedIn:</strong> ${portfolioData.contact?.linkedinUrl || '#'}</div>
+                </div>
+            </section>
+
+            <!-- Skills Section -->
+            ${portfolioData.skills && portfolioData.skills.length > 0 ? `
+            <section class="bg-white rounded-lg shadow-md p-6 mb-8">
+                <h2 class="text-2xl font-bold mb-4">Skills</h2>
+                <div class="flex flex-wrap gap-2">
+                    ${portfolioData.skills.map((skill: string) => `<span class="bg-blue-100 text-blue-800 px-3 py-1 rounded-full text-sm">${skill}</span>`).join('')}
+                </div>
+            </section>` : ''}
+
+            <!-- Projects Section -->
+            ${portfolioData.projects && portfolioData.projects.length > 0 ? `
+            <section class="bg-white rounded-lg shadow-md p-6">
+                <h2 class="text-2xl font-bold mb-4">Featured Projects</h2>
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    ${portfolioData.projects.map((project: any) => `
+                    <div class="border rounded-lg p-4 hover:shadow-lg transition-shadow">
+                        <h3 class="font-bold text-lg mb-2">${project.name}</h3>
+                        <p class="text-gray-600 mb-3">${project.description}</p>
+                        ${project.tech_stack && project.tech_stack.length > 0 ? `
+                        <div class="flex flex-wrap gap-1 mb-3">
+                            ${project.tech_stack.map((tech: string) => `<span class="bg-gray-100 text-gray-700 px-2 py-1 rounded text-xs">${tech}</span>`).join('')}
+                        </div>` : ''}
+                        ${project.key_features && project.key_features.length > 0 ? `
+                        <ul class="text-sm text-gray-600">
+                            ${project.key_features.map((feature: string) => `<li class="mb-1">• ${feature}</li>`).join('')}
+                        </ul>` : ''}
+                    </div>`).join('')}
+                </div>
+            </section>` : ''}
+        </main>
+    </div>
+</body>
+</html>
+  `
+}
+
+function generateNextJSPage(portfolioData: any) {
+  return `
+'use client'
+
+import { useState } from 'react'
+
+export default function PortfolioPage() {
+  const [activeSection, setActiveSection] = useState('about')
+
+  return (
+    <div className="min-h-screen bg-gray-50">
+      {/* Header */}
+      <header className="bg-white shadow-sm border-b">
+        <div className="max-w-6xl mx-auto px-4 py-6">
+          <h1 className="text-3xl font-bold text-gray-900">${portfolioData.contact?.name || 'Your Name'}</h1>
+          <p className="text-gray-600 mt-2">${portfolioData.introduction || 'Professional Portfolio'}</p>
+        </div>
+      </header>
+
+      {/* Navigation */}
+      <nav className="bg-white border-b">
+        <div className="max-w-6xl mx-auto px-4">
+          <div className="flex space-x-8">
+            <button onClick={() => setActiveSection('about')} className="py-4 border-b-2 border-blue-500 text-blue-600">About</button>
+            <button onClick={() => setActiveSection('skills')} className="py-4 border-b-2 border-transparent hover:border-gray-300">Skills</button>
+            <button onClick={() => setActiveSection('projects')} className="py-4 border-b-2 border-transparent hover:border-gray-300">Projects</button>
+            <button onClick={() => setActiveSection('contact')} className="py-4 border-b-2 border-transparent hover:border-gray-300">Contact</button>
+          </div>
+        </div>
+      </nav>
+
+      {/* Main Content */}
+      <main className="max-w-6xl mx-auto px-4 py-8">
+        {/* Contact Section */}
+        <section className="bg-white rounded-lg shadow-md p-6 mb-8">
+          <h2 className="text-2xl font-bold mb-4">Contact Information</h2>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div><strong>Email:</strong> ${portfolioData.contact?.email || 'your.email@example.com'}</div>
+            <div><strong>Phone:</strong> ${portfolioData.contact?.phone || 'Your Phone'}</div>
+            <div><strong>Address:</strong> ${portfolioData.contact?.address || 'Your Address'}</div>
+            <div><strong>LinkedIn:</strong> ${portfolioData.contact?.linkedinUrl || '#'}</div>
+          </div>
+        </section>
+
+        {/* Skills Section */}
+        ${portfolioData.skills && portfolioData.skills.length > 0 ? `
+        <section className="bg-white rounded-lg shadow-md p-6 mb-8">
+          <h2 className="text-2xl font-bold mb-4">Skills</h2>
+          <div className="flex flex-wrap gap-2">
+            ${portfolioData.skills.map((skill: string) => `<span className="bg-blue-100 text-blue-800 px-3 py-1 rounded-full text-sm">${skill}</span>`).join('')}
+          </div>
+        </section>` : ''}
+
+        {/* Projects Section */}
+        ${portfolioData.projects && portfolioData.projects.length > 0 ? `
+        <section className="bg-white rounded-lg shadow-md p-6">
+          <h2 className="text-2xl font-bold mb-4">Featured Projects</h2>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            ${portfolioData.projects.map((project: any) => `
+            <div className="border rounded-lg p-4 hover:shadow-lg transition-shadow">
+              <h3 className="font-bold text-lg mb-2">${project.name}</h3>
+              <p className="text-gray-600 mb-3">${project.description}</p>
+              ${project.tech_stack && project.tech_stack.length > 0 ? `
+              <div className="flex flex-wrap gap-1 mb-3">
+                ${project.tech_stack.map((tech: string) => `<span className="bg-gray-100 text-gray-700 px-2 py-1 rounded text-xs">${tech}</span>`).join('')}
+              </div>` : ''}
+              ${project.key_features && project.key_features.length > 0 ? `
+              <ul className="text-sm text-gray-600">
+                ${project.key_features.map((feature: string) => `<li className="mb-1">• ${feature}</li>`).join('')}
+              </ul>` : ''}
+            </div>`).join('')}
+          </div>
+        </section>` : ''}
+      </main>
+    </div>
+  )
+}
+  `
+}
+
+function generateNextConfig() {
+  return `
+/** @type {import('next').NextConfig} */
+const nextConfig = {
+  output: 'export',
+  trailingSlash: true,
+  images: {
+    unoptimized: true
+  }
+}
+
+module.exports = nextConfig
+  `
 }

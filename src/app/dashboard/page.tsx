@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
-import { Sparkles, FileText, Target, TrendingUp, Github, Eye, Settings, LogOut, User, ChevronDown } from 'lucide-react'
+import { Sparkles, FileText, Target, TrendingUp, Github, Eye, Settings, LogOut, User, ChevronDown, Search } from 'lucide-react'
 
 export default function Dashboard() {
   const router = useRouter()
@@ -95,6 +95,12 @@ useEffect(() => {
                 className="text-gray-900 hover:text-indigo-600 px-3 py-2 rounded-md text-sm font-medium transition-colors"
               >
                 Dashboard
+              </button>
+              <button
+                onClick={() => router.push('/dashboard/job-analyzer')}
+                className="text-gray-600 hover:text-indigo-600 px-3 py-2 rounded-md text-sm font-medium transition-colors"
+              >
+                Job Analyzer
               </button>
               <button
                 onClick={() => router.push('/dashboard/templates')}
@@ -237,21 +243,21 @@ useEffect(() => {
         {/* Quick Actions */}
         <div className="mb-8">
           <h2 className="text-xl font-semibold text-gray-900 mb-4">Quick Actions</h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
+            <button
+              onClick={() => router.push('/dashboard/job-analyzer')}
+              className="bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-3 px-4 rounded-lg transition-colors flex items-center justify-center"
+            >
+              <Search className="h-5 w-5 mr-2" />
+              Job Analyzer
+            </button>
+            
             <button
               onClick={() => router.push('/dashboard/templates')}
               className="bg-blue-600 hover:bg-blue-700 text-white font-medium py-3 px-4 rounded-lg transition-colors flex items-center justify-center"
             >
               <FileText className="h-5 w-5 mr-2" />
               Build Resume
-            </button>
-            
-            <button
-              onClick={() => router.push('/dashboard/optimizer')}
-              className="bg-green-600 hover:bg-green-700 text-white font-medium py-3 px-4 rounded-lg transition-colors flex items-center justify-center"
-            >
-              <Target className="h-5 w-5 mr-2" />
-              Optimize for Job
             </button>
             
             <button

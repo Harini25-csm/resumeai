@@ -1,8 +1,31 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
+import { useRouter } from 'next/navigation'
 import { motion } from 'framer-motion'
-import { Github, ExternalLink, Rocket, Code, Star, Loader2, Sparkles, Globe, Linkedin, User, Briefcase, GraduationCap, Edit2, Save, X, Download } from 'lucide-react'
+import { 
+  Github, 
+  Linkedin, 
+  User, 
+  Star, 
+  Download, 
+  FileText, 
+  Eye, 
+  Settings, 
+  LogOut, 
+  ChevronDown, 
+  Search,
+  Sparkles,
+  Rocket,
+  Loader2,
+  Edit2,
+  Save,
+  X,
+  Briefcase
+} from 'lucide-react'
+import { createClientInstance } from '@/lib/supabase'
+import jsPDF from 'jspdf'
+import html2canvas from 'html2canvas'
 
 const languageColors: { [key: string]: string } = {
   'JavaScript': 'bg-yellow-100 text-yellow-800',
@@ -31,13 +54,28 @@ export default function PortfolioGenerator() {
   const [repos, setRepos] = useState<any[]>([])
   const [linkedinData, setLinkedinData] = useState<any>(null)
   const [portfolioData, setPortfolioData] = useState<any>(null)
-  const [isGenerating, setIsGenerating] = useState(false)
+  const [isPageLoading, setIsPageLoading] = useState(true)
+  
+  // Pagination state for projects
+  const [projectsToShow, setProjectsToShow] = useState(6)
+  const [showAllProjects, setShowAllProjects] = useState(false)
   const [isFetching, setIsFetching] = useState(false)
   const [isFetchingLinkedin, setIsFetchingLinkedin] = useState(false)
   const [deployedUrl, setDeployedUrl] = useState('')
   const [isEditing, setIsEditing] = useState(false)
   const [editablePortfolio, setEditablePortfolio] = useState<any>(null)
+  const [isGenerating, setIsGenerating] = useState(false)
+  const [isGeneratingEnhanced, setIsGeneratingEnhanced] = useState(false)
   const [isStartingEdit, setIsStartingEdit] = useState(false)
+  
+  // Personal details state (always available)
+  const [personalDetails, setPersonalDetails] = useState({
+    name: '',
+    email: '',
+    phone: '',
+    address: '',
+    linkedinUrl: ''
+  })
 
   const fetchRepos = async () => {
     if (!githubUsername.trim()) {
@@ -125,7 +163,8 @@ export default function PortfolioGenerator() {
         body: JSON.stringify({ 
           repos, 
           linkedinData,
-          githubUsername 
+          githubUsername,
+          userName: personalDetails.name || linkedinData?.name || githubUsername
         })
       })
 
@@ -139,9 +178,10 @@ export default function PortfolioGenerator() {
         ...data.portfolio,
         contact: {
           ...data.portfolio.contact,
-          email: '',
-          phone: '',
-          address: '',
+          name: personalDetails.name || data.portfolio.contact.name,
+          email: personalDetails.email || data.portfolio.contact.email,
+          phone: personalDetails.phone || data.portfolio.contact.phone,
+          address: personalDetails.address || data.portfolio.contact.address,
           linkedinUrl: linkedinProfile
         }
       })
@@ -150,6 +190,41 @@ export default function PortfolioGenerator() {
       alert('Failed to generate portfolio. Please try again.')
     } finally {
       setIsGenerating(false)
+    }
+  }
+
+  const generateEnhancedPortfolio = async () => {
+    if (repos.length === 0) {
+      alert('Please fetch repositories first')
+      return
+    }
+
+    setIsGeneratingEnhanced(true)
+    try {
+      const response = await fetch('/api/generate-portfolio', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          projects: repos,
+          username: githubUsername,
+          resumeData: linkedinData
+        })
+      })
+
+      if (!response.ok) {
+        throw new Error('Failed to generate enhanced portfolio')
+      }
+
+      const data = await response.json()
+      // Update repos with enhanced data
+      if (data.enhancedProjects) {
+        setRepos(data.enhancedProjects)
+      }
+    } catch (error) {
+      console.error('Error generating enhanced portfolio:', error)
+      alert('Failed to generate enhanced portfolio. Please try again.')
+    } finally {
+      setIsGeneratingEnhanced(false)
     }
   }
 
@@ -219,120 +294,272 @@ export default function PortfolioGenerator() {
     }))
   }
 
-  const downloadPortfolio = () => {
+  const downloadPortfolio = async () => {
     if (!portfolioData) return
     
-    // Get the proper name from contact or portfolio data
-    const displayName = portfolioData.contact?.linkedin || 
+    // Get the proper name from personal details first, then fallback
+    const displayName = personalDetails.name || 
                        portfolioData.contact?.name || 
+                       portfolioData.contact?.linkedin || 
                        portfolioData.name || 
                        'Portfolio'
     
-    // Create HTML content for portfolio
-    const portfolioHTML = `
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>${displayName} - Portfolio</title>
-    <style>
-        body { font-family: Arial, sans-serif; line-height: 1.6; max-width: 800px; margin: 0 auto; padding: 20px; }
-        .header { text-align: center; margin-bottom: 40px; }
-        .header h1 { color: #333; margin-bottom: 10px; }
-        .header p { color: #666; font-size: 1.1em; }
-        .contact-info { background: #f5f5f5; padding: 20px; border-radius: 8px; margin-bottom: 30px; }
-        .section { margin-bottom: 30px; }
-        .section h2 { color: #333; border-bottom: 2px solid #007bff; padding-bottom: 10px; }
-        .skills { display: flex; flex-wrap: wrap; gap: 10px; }
-        .skill { background: #007bff; color: white; padding: 5px 10px; border-radius: 20px; font-size: 0.9em; }
-        .experience-item { margin-bottom: 20px; }
-        .project { border: 1px solid #ddd; padding: 15px; border-radius: 8px; margin-bottom: 20px; }
-        .tech-tags { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 10px; }
-        .tech-tag { background: #e9ecef; color: #333; padding: 3px 8px; border-radius: 12px; font-size: 0.8em; }
-    </style>
-</head>
-<body>
-    <div class="header">
-        <h1>${displayName}</h1>
-        <p>${portfolioData.introduction || 'Professional Portfolio'}</p>
-    </div>
+    // Create a temporary div with the portfolio content
+    const tempDiv = document.createElement('div')
+    tempDiv.style.position = 'absolute'
+    tempDiv.style.left = '-9999px'
+    tempDiv.style.width = '800px'
+    tempDiv.style.padding = '40px'
+    tempDiv.style.fontFamily = 'Arial, sans-serif'
+    tempDiv.style.lineHeight = '1.6'
+    tempDiv.style.color = '#333'
+    tempDiv.style.backgroundColor = 'white'
     
-    <div class="contact-info">
-        <h3>Contact Information</h3>
-        <p><strong>Email:</strong> ${portfolioData.contact?.email || 'your.email@example.com'}</p>
-        <p><strong>Phone:</strong> ${portfolioData.contact?.phone || 'Your Phone Number'}</p>
-        <p><strong>Address:</strong> ${portfolioData.contact?.address || 'Your Address'}</p>
-        <p><strong>LinkedIn:</strong> <a href="${portfolioData.contact?.linkedinUrl || '#'}">${portfolioData.contact?.linkedinUrl || 'LinkedIn Profile'}</a></p>
-        ${portfolioData.contact?.github ? `<p><strong>GitHub:</strong> <a href="https://github.com/${portfolioData.contact.github}">github.com/${portfolioData.contact.github}</a></p>` : ''}
-    </div>
-    
-    ${portfolioData.about ? `
-    <div class="section">
-        <h2>About Me</h2>
-        <p>${portfolioData.about}</p>
-    </div>` : ''}
-    
-    ${portfolioData.skills && portfolioData.skills.length > 0 ? `
-    <div class="section">
-        <h2>Skills</h2>
-        <div class="skills">
-            ${(portfolioData.skills || []).map((skill: string) => `<span class="skill">${skill}</span>`).join('')}
+    // Create HTML content with better formatting
+    tempDiv.innerHTML = `
+      <div style="text-align: center; margin-bottom: 40px; page-break-after: avoid;">
+        <h1 style="color: #333; margin-bottom: 10px; font-size: 2.5em;">${displayName}</h1>
+        <p style="color: #666; font-size: 1.1em; margin-bottom: 20px;">${portfolioData.introduction || 'Professional Portfolio'}</p>
+      </div>
+      
+      <div style="background: #f5f5f5; padding: 20px; border-radius: 8px; margin-bottom: 30px; page-break-after: avoid;">
+        <h3 style="color: #333; margin-bottom: 15px; font-size: 1.3em;">Contact Information</h3>
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 10px;">
+          <div><strong>Email:</strong> ${personalDetails.email || portfolioData.contact?.email || 'your.email@example.com'}</div>
+          <div><strong>Phone:</strong> ${personalDetails.phone || portfolioData.contact?.phone || 'Your Phone Number'}</div>
+          <div><strong>Address:</strong> ${personalDetails.address || portfolioData.contact?.address || 'Your Address'}</div>
+          <div><strong>LinkedIn:</strong> ${portfolioData.contact?.linkedinUrl || personalDetails.linkedinUrl || 'LinkedIn Profile'}</div>
+          ${portfolioData.contact?.github ? `<div><strong>GitHub:</strong> github.com/${portfolioData.contact.github}</div>` : ''}
         </div>
-    </div>` : ''}
-    
-    ${portfolioData.experience && portfolioData.experience.length > 0 ? `
-    <div class="section">
-        <h2>Experience</h2>
+      </div>
+      
+      ${portfolioData.about ? `
+      <div style="margin-bottom: 30px; page-break-after: avoid;">
+        <h2 style="color: #333; border-bottom: 2px solid #007bff; padding-bottom: 10px; margin-bottom: 15px; font-size: 1.5em;">About Me</h2>
+        <p style="line-height: 1.7; margin-bottom: 15px;">${portfolioData.about}</p>
+      </div>` : ''}
+      
+      ${portfolioData.skills && portfolioData.skills.length > 0 ? `
+      <div style="margin-bottom: 30px; page-break-after: avoid;">
+        <h2 style="color: #333; border-bottom: 2px solid #007bff; padding-bottom: 10px; margin-bottom: 15px; font-size: 1.5em;">Skills</h2>
+        <div style="display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 15px;">
+          ${(portfolioData.skills || []).map((skill: string) => `<span style="background: #007bff; color: white; padding: 8px 12px; border-radius: 20px; font-size: 0.9em; display: inline-block; margin-bottom: 5px;">${skill}</span>`).join('')}
+        </div>
+      </div>` : ''}
+      
+      ${portfolioData.experience && portfolioData.experience.length > 0 ? `
+      <div style="margin-bottom: 30px; page-break-inside: avoid;">
+        <h2 style="color: #333; border-bottom: 2px solid #007bff; padding-bottom: 10px; margin-bottom: 15px; font-size: 1.5em;">Experience</h2>
         ${(portfolioData.experience || []).map((exp: any) => `
-            <div class="experience-item">
-                <h3>${exp.title}</h3>
-                <p><strong>${exp.company}</strong> • ${exp.duration}</p>
-                <p>${exp.description}</p>
-            </div>
+          <div style="margin-bottom: 25px; padding: 15px; border-left: 3px solid #007bff; background: #f9f9f9;">
+            <h3 style="color: #333; margin-bottom: 5px; font-size: 1.2em;">${exp.title}</h3>
+            <p style="color: #666; margin-bottom: 10px;"><strong>${exp.company}</strong> • ${exp.duration}</p>
+            <p style="line-height: 1.6;">${exp.description}</p>
+          </div>
         `).join('')}
-    </div>` : ''}
-    
-    ${portfolioData.projects && portfolioData.projects.length > 0 ? `
-    <div class="section">
-        <h2>Projects</h2>
-        ${(portfolioData.projects || []).map((project: any) => `
-            <div class="project">
-                <h3>${project.name}</h3>
-                <p>${project.description}</p>
-                ${project.technologies && project.technologies.length > 0 ? `
-                    <div class="tech-tags">
-                        ${(project.technologies || []).map((tech: string) => `<span class="tech-tag">${tech}</span>`).join('')}
-                    </div>
-                ` : ''}
-                ${project.highlights && project.highlights.length > 0 ? `
-                    <ul>
-                        ${(project.highlights || []).map((highlight: string) => `<li>${highlight}</li>`).join('')}
-                    </ul>
-                ` : ''}
-            </div>
+      </div>` : ''}
+      
+      ${portfolioData.projects && portfolioData.projects.length > 0 ? `
+      <div style="margin-bottom: 30px;">
+        <h2 style="color: #333; border-bottom: 2px solid #007bff; padding-bottom: 10px; margin-bottom: 15px; font-size: 1.5em;">Projects</h2>
+        ${(portfolioData.projects || []).map((project: any, index: number) => `
+          <div style="border: 1px solid #ddd; padding: 20px; border-radius: 8px; margin-bottom: 25px; page-break-inside: avoid; ${index % 2 === 0 ? 'background: #f9f9f9;' : ''}">
+            <h3 style="color: #333; margin-bottom: 10px; font-size: 1.2em;">${project.name}</h3>
+            <p style="line-height: 1.6; margin-bottom: 15px; color: #444;">${project.description}</p>
+            ${project.tech_stack && project.tech_stack.length > 0 ? `
+              <div style="margin-bottom: 15px;">
+                <strong style="color: #333;">Technologies:</strong>
+                <div style="display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px;">
+                  ${(project.tech_stack || []).map((tech: string) => `<span style="background: #e9ecef; color: #333; padding: 4px 10px; border-radius: 12px; font-size: 0.85em; border: 1px solid #ddd;">${tech}</span>`).join('')}
+                </div>
+              </div>
+            ` : ''}
+            ${project.key_features && project.key_features.length > 0 ? `
+              <div>
+                <strong style="color: #333;">Key Features:</strong>
+                <ul style="margin-top: 8px; padding-left: 20px; line-height: 1.6;">
+                  ${(project.key_features || []).map((feature: string) => `<li style="margin-bottom: 5px;">${feature}</li>`).join('')}
+                </ul>
+              </div>
+            ` : ''}
+          </div>
         `).join('')}
-    </div>` : ''}
-</body>
-</html>
+      </div>` : ''}
     `
     
-    // Create and download file
-    const blob = new Blob([portfolioHTML], { type: 'text/html' })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = `${displayName.replace(/\s+/g, '-').toLowerCase()}-portfolio.html`
-    document.body.appendChild(a)
-    a.click()
-    document.body.removeChild(a)
-    URL.revokeObjectURL(url)
+    document.body.appendChild(tempDiv)
+    
+    try {
+      // Generate canvas from the HTML content
+      const canvas = await html2canvas(tempDiv, {
+        scale: 2,
+        useCORS: true,
+        allowTaint: true,
+        backgroundColor: '#ffffff'
+      })
+      
+      // Create PDF
+      const imgData = canvas.toDataURL('image/png')
+      const pdf = new jsPDF('p', 'mm', 'a4')
+      const imgWidth = 210 // A4 width in mm
+      const pageHeight = 297 // A4 height in mm
+      const imgHeight = (canvas.height * imgWidth) / canvas.width
+      let heightLeft = imgHeight
+      let position = 0
+      
+      // Add first page
+      pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight)
+      heightLeft -= pageHeight
+      
+      // Add additional pages if needed
+      while (heightLeft >= 0) {
+        position = heightLeft - imgHeight
+        pdf.addPage()
+        pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight)
+        heightLeft -= pageHeight
+      }
+      
+      // Download PDF
+      pdf.save(`${displayName.replace(/\s+/g, '-').toLowerCase()}-portfolio.pdf`)
+      
+    } catch (error) {
+      console.error('Error generating PDF:', error)
+      alert('Failed to generate PDF. Please try again.')
+    } finally {
+      // Clean up
+      document.body.removeChild(tempDiv)
+    }
   }
 
-  const generatePortfolioSite = () => {
-    const portfolioUrl = `https://portfolio-${githubUsername}.vercel.app`
-    setDeployedUrl(portfolioUrl)
-    alert(`Portfolio site generated! Share this link: ${portfolioUrl}`)
+  const generatePortfolioSite = async () => {
+    if (!portfolioData) {
+      alert('Please generate a portfolio first')
+      return
+    }
+
+    try {
+      const response = await fetch('/api/deploy-portfolio', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ portfolioData })
+      })
+
+      if (!response.ok) {
+        throw new Error('Failed to generate portfolio site')
+      }
+
+      const data = await response.json()
+      
+      if (data.success) {
+        // Show deployment instructions in a modal or alert
+        const instructions = `
+=== PORTFOLIO DEPLOYMENT INSTRUCTIONS ===
+
+Your portfolio site has been generated! 
+
+📁 Generated at: ${data.sitePath}
+
+🚀 DEPLOYMENT OPTIONS:
+
+OPTION 1: EASIEST (Vercel CLI)
+1. Install Vercel CLI: npm i -g vercel
+2. Open terminal and run: cd "${data.sitePath}"
+3. Deploy: vercel --prod
+4. Follow the prompts to deploy
+
+OPTION 2: GITHUB + VERCEL (Recommended)
+1. Push to GitHub:
+   cd "${data.sitePath}"
+   git init
+   git add .
+   git commit -m "Add portfolio site"
+   git branch -M main
+   git remote add origin https://github.com/YOUR_USERNAME/portfolio.git
+   git push -u origin main
+
+2. Deploy on Vercel:
+   - Go to vercel.com
+   - Click "New Project"
+   - Import your GitHub repository
+   - Auto-deploy!
+
+OPTION 3: MANUAL UPLOAD
+1. Build: cd "${data.sitePath}" && npm install && npm run build
+2. Upload the 'out' folder to any hosting service
+
+✨ Your portfolio includes:
+- All your projects with enhanced descriptions
+- Professional design with Tailwind CSS
+- Responsive layout for all devices
+- Contact information and skills sections
+        `
+        
+        // Create a modal or show in a better format
+        const modal = document.createElement('div')
+        modal.style.cssText = `
+          position: fixed;
+          top: 0;
+          left: 0;
+          width: 100%;
+          height: 100%;
+          background: rgba(0,0,0,0.8);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          z-index: 9999;
+        `
+        
+        const content = document.createElement('div')
+        content.style.cssText = `
+          background: white;
+          padding: 30px;
+          border-radius: 10px;
+          max-width: 600px;
+          max-height: 80vh;
+          overflow-y: auto;
+          position: relative;
+        `
+        
+        content.innerHTML = `
+          <h2 style="margin: 0 0 20px 0; color: #333; font-size: 24px;">🚀 Portfolio Ready for Deployment!</h2>
+          <pre style="
+            background: #f5f5f5;
+            padding: 15px;
+            border-radius: 5px;
+            font-size: 12px;
+            white-space: pre-wrap;
+            overflow-x: auto;
+            margin: 0;
+          ">${instructions}</pre>
+          <button onclick="this.parentElement.parentElement.remove()" style="
+            background: #3b82f6;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin-top: 20px;
+            font-size: 16px;
+          ">Close</button>
+        `
+        
+        modal.appendChild(content)
+        document.body.appendChild(modal)
+        
+        // Close modal when clicking outside
+        modal.addEventListener('click', (e) => {
+          if (e.target === modal) {
+            modal.remove()
+          }
+        })
+        
+      } else {
+        alert(data.error || 'Failed to generate portfolio site')
+      }
+    } catch (error) {
+      console.error('Deployment error:', error)
+      alert('Failed to generate portfolio site. Please try again.')
+    }
   }
 
   return (
@@ -501,6 +728,61 @@ export default function PortfolioGenerator() {
           </div>
         </motion.div>
 
+        {/* Personal Details - Always Visible */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.05 }}
+          className="bg-white rounded-xl shadow-lg p-6 mb-8"
+        >
+          <h2 className="text-xl font-semibold text-gray-900 mb-4 flex items-center gap-2">
+            <User className="w-5 h-5" />
+            Personal Details
+          </h2>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="space-y-3">
+              <label className="block text-sm font-medium text-gray-700 mb-1">Full Name</label>
+              <input
+                type="text"
+                value={personalDetails.name}
+                onChange={(e) => setPersonalDetails({ ...personalDetails, name: e.target.value })}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                placeholder="Enter your full name"
+              />
+            </div>
+            <div className="space-y-3">
+              <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
+              <input
+                type="email"
+                value={personalDetails.email}
+                onChange={(e) => setPersonalDetails({ ...personalDetails, email: e.target.value })}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                placeholder="your.email@example.com"
+              />
+            </div>
+            <div className="space-y-3">
+              <label className="block text-sm font-medium text-gray-700 mb-1">Phone</label>
+              <input
+                type="tel"
+                value={personalDetails.phone}
+                onChange={(e) => setPersonalDetails({ ...personalDetails, phone: e.target.value })}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                placeholder="+1 (555) 123-4567"
+              />
+            </div>
+            <div className="space-y-3">
+              <label className="block text-sm font-medium text-gray-700 mb-1">Address</label>
+              <input
+                type="text"
+                value={personalDetails.address}
+                onChange={(e) => setPersonalDetails({ ...personalDetails, address: e.target.value })}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                placeholder="123 Main St, City, State 12345"
+              />
+            </div>
+          </div>
+        </motion.div>
+
         {/* LinkedIn Profile Display */}
         {linkedinData && (
           <motion.div
@@ -554,6 +836,39 @@ export default function PortfolioGenerator() {
           </motion.div>
         )}
 
+        {/* Generate Complete Portfolio - Always Visible */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.15 }}
+          className="bg-white rounded-xl shadow-lg p-6 mb-8"
+        >
+          <h2 className="text-xl font-semibold text-gray-900 mb-4 flex items-center gap-2">
+            <Rocket className="w-5 h-5" />
+            Generate Complete Portfolio
+          </h2>
+          <p className="text-gray-600 mb-4">
+            Generate your complete portfolio with all available data (GitHub + LinkedIn)
+          </p>
+          <button
+            onClick={generatePortfolioWithAI}
+            disabled={isGenerating || repos.length === 0}
+            className="px-6 py-2 bg-gradient-to-r from-green-600 to-emerald-600 text-white rounded-lg hover:from-green-700 hover:to-emerald-700 transition-all transform hover:scale-105 flex items-center gap-2"
+          >
+            {isGenerating ? (
+              <>
+                <Loader2 className="w-4 h-4 animate-spin" />
+                Generating...
+              </>
+            ) : (
+              <>
+                <Rocket className="w-4 h-4" />
+                Generate Complete Portfolio
+              </>
+            )}
+          </button>
+        </motion.div>
+
         {/* Projects Grid */}
         {repos.length > 0 && (
           <motion.div
@@ -564,27 +879,32 @@ export default function PortfolioGenerator() {
           >
             <div className="flex justify-between items-center mb-6">
               <h2 className="text-3xl font-bold text-gray-900">Featured Projects</h2>
-              <button
-                onClick={generatePortfolioWithAI}
-                disabled={isGenerating}
-                className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
-              >
-                {isGenerating ? (
-                  <>
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                    Generating...
-                  </>
-                ) : (
-                  <>
-                    <Sparkles className="w-4 h-4" />
-                    Generate Enhanced Portfolio
-                  </>
+              <div className="flex gap-2">
+                <button
+                  onClick={generateEnhancedPortfolio}
+                  disabled={isGeneratingEnhanced || repos.length === 0}
+                  className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
+                >
+                  {isGeneratingEnhanced ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      Generating...
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles className="w-4 h-4" />
+                      Generate Enhanced Portfolio
+                    </>
+                  )}
+                </button>
+                {repos.length === 0 && (
+                  <span className="text-sm text-gray-500">Fetch projects first</span>
                 )}
-              </button>
+              </div>
             </div>
             
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {repos.map((repo) => (
+              {repos.slice(0, showAllProjects ? repos.length : projectsToShow).map((repo) => (
                 <motion.div
                   key={repo.id}
                   initial={{ opacity: 0, y: 20 }}
@@ -622,6 +942,22 @@ export default function PortfolioGenerator() {
                 </motion.div>
               ))}
             </div>
+            
+            {/* See More/Less Button */}
+            {repos.length > projectsToShow && (
+              <div className="text-center mt-6">
+                <button
+                  onClick={() => setShowAllProjects(!showAllProjects)}
+                  className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                >
+                  {showAllProjects ? (
+                    <>See Less Projects</>
+                  ) : (
+                    <>See More Projects ({repos.length - projectsToShow} more)</>
+                  )}
+                </button>
+              </div>
+            )}
           </motion.div>
         )}
 
@@ -683,81 +1019,6 @@ export default function PortfolioGenerator() {
                 )}
               </div>
             </div>
-            
-            {/* Contact Section - Moved to Top */}
-            {(isEditing ? editablePortfolio : portfolioData)?.contact && (
-              <div className="text-center pb-6 border-b border-gray-200 mb-8">
-                <h3 className="text-xl font-semibold text-gray-900 mb-4">Personal Details</h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-w-2xl mx-auto">
-                  <div className="space-y-3">
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
-                    <input
-                      type="email"
-                      value={isEditing ? editablePortfolio.contact.email : portfolioData.contact.email}
-                      onChange={(e) => updateContactField('email', e.target.value)}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-                      placeholder="your.email@example.com"
-                      disabled={!isEditing}
-                    />
-                  </div>
-                  <div className="space-y-3">
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Phone</label>
-                    <input
-                      type="tel"
-                      value={isEditing ? editablePortfolio.contact.phone : portfolioData.contact.phone}
-                      onChange={(e) => updateContactField('phone', e.target.value)}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-                      placeholder="+1 (555) 123-4567"
-                      disabled={!isEditing}
-                    />
-                  </div>
-                  <div className="space-y-3">
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Address</label>
-                    <input
-                      type="text"
-                      value={isEditing ? editablePortfolio.contact.address : portfolioData.contact.address}
-                      onChange={(e) => updateContactField('address', e.target.value)}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-                      placeholder="123 Main St, City, State 12345"
-                      disabled={!isEditing}
-                    />
-                  </div>
-                  <div className="space-y-3">
-                    <label className="block text-sm font-medium text-gray-700 mb-1">LinkedIn URL</label>
-                    <input
-                      type="url"
-                      value={isEditing ? editablePortfolio.contact.linkedinUrl : portfolioData.contact.linkedinUrl}
-                      onChange={(e) => updateContactField('linkedinUrl', e.target.value)}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-                      placeholder="https://linkedin.com/in/yourprofile"
-                      disabled={!isEditing}
-                    />
-                  </div>
-                </div>
-                
-                {!isEditing && (
-                  <div className="flex justify-center gap-4 mt-6">
-                    {portfolioData.contact.github && (
-                      <a
-                        href={`https://github.com/${portfolioData.contact.github}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="flex items-center gap-2 text-gray-600 hover:text-gray-900"
-                      >
-                        <Github className="w-4 h-4" />
-                        GitHub
-                      </a>
-                    )}
-                    {portfolioData.contact.linkedin && (
-                      <span className="flex items-center gap-2 text-gray-600">
-                        <Linkedin className="w-4 h-4" />
-                        {portfolioData.contact.linkedin}
-                      </span>
-                    )}
-                  </div>
-                )}
-              </div>
-            )}
             
             {/* Introduction */}
             {(isEditing ? editablePortfolio : portfolioData)?.introduction && (

@@ -46,7 +46,7 @@ export async function POST(request: NextRequest) {
 function generateFallbackLinkedInProfile(username: string) {
   // Generate a realistic LinkedIn profile for MITS Madanapalle student
   const profile = {
-    name: "Student",
+    name: username.charAt(0).toUpperCase() + username.slice(1).replace(/[-_]/g, ' '),
     headline: "Computer Science Student | Aspiring Full-Stack Developer",
     summary: `Computer Science student at Madanapalle Institute of Technology & Science (MITS) passionate about software development and building innovative solutions. Currently focused on learning modern web technologies and contributing to academic projects. Eager to apply technical knowledge to real-world applications and grow as a developer.`,
     experience: [

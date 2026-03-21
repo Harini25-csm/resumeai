@@ -1,0 +1,630 @@
+'use client'
+
+import { useState, useRef } from 'react'
+import { motion } from 'framer-motion'
+import { Search, FileText, TrendingUp, Target, BookOpen, Award, AlertCircle, CheckCircle, Clock, Upload, X } from 'lucide-react'
+
+export default function JobAnalyzer() {
+  const [jobDescription, setJobDescription] = useState('')
+  const [currentResume, setCurrentResume] = useState('')
+  const [analysis, setAnalysis] = useState<any>(null)
+  const [isAnalyzing, setIsAnalyzing] = useState(false)
+  const [error, setError] = useState('')
+  const [uploadedFile, setUploadedFile] = useState<File | null>(null)
+  const [isUploading, setIsUploading] = useState(false)
+  const fileInputRef = useRef<HTMLInputElement>(null)
+
+  const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0]
+    if (!file) return
+
+    // Check file type
+    const allowedTypes = ['text/plain', 'application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document']
+    if (!allowedTypes.includes(file.type)) {
+      setError('Please upload a text file, PDF, or Word document')
+      return
+    }
+
+    // Check file size (5MB limit)
+    if (file.size > 5 * 1024 * 1024) {
+      setError('File size must be less than 5MB')
+      return
+    }
+
+    setIsUploading(true)
+    setError('')
+
+    try {
+      const formData = new FormData()
+      formData.append('file', file)
+
+      const response = await fetch('/api/parse-resume', {
+        method: 'POST',
+        body: formData
+      })
+
+      if (!response.ok) {
+        throw new Error('Failed to parse resume')
+      }
+
+      const data = await response.json()
+      setCurrentResume(data.text)
+      setUploadedFile(file)
+    } catch (error) {
+      console.error('File upload error:', error)
+      setError('Failed to upload and parse resume. Please try again.')
+    } finally {
+      setIsUploading(false)
+    }
+  }
+
+  const removeUploadedFile = () => {
+    setUploadedFile(null)
+    setCurrentResume('')
+    if (fileInputRef.current) {
+      fileInputRef.current.value = ''
+    }
+  }
+
+  const analyzeJobDescription = async () => {
+    if (!currentResume.trim() && !uploadedFile) {
+      setError('Please upload your resume or paste it first')
+      return
+    }
+
+    setIsAnalyzing(true)
+    setError('')
+
+    try {
+      const response = await fetch('/api/analyze-job-description', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          jobDescription: jobDescription.trim() || 'Analyze my resume and suggest best career roles for me',
+          currentResume: currentResume.trim(),
+          requestType: jobDescription.trim() ? 'job_analysis' : 'career_analysis'
+        })
+      })
+
+      if (!response.ok) {
+        throw new Error('Failed to analyze resume')
+      }
+
+      const data = await response.json()
+      setAnalysis(data.analysis)
+    } catch (error) {
+      console.error('Analysis error:', error)
+      setError('Failed to analyze resume. Please try again.')
+    } finally {
+      setIsAnalyzing(false)
+    }
+  }
+
+  const getConfidenceColor = (score: number) => {
+    if (score >= 80) return 'text-green-600 bg-green-100'
+    if (score >= 60) return 'text-yellow-600 bg-yellow-100'
+    return 'text-red-600 bg-red-100'
+  }
+
+  return (
+    <div style={{ minHeight: '100vh', background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', padding: '2rem' }}>
+      <div style={{ maxWidth: '1200px', margin: '0 auto' }}>
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          style={{
+            backgroundColor: 'white',
+            borderRadius: '20px',
+            padding: '2rem',
+            boxShadow: '0 20px 40px rgba(0,0,0,0.1)'
+          }}
+        >
+          <div style={{ textAlign: 'center', marginBottom: '2rem' }}>
+            <h1 style={{ fontSize: '2.5rem', fontWeight: 'bold', color: '#1a202c', marginBottom: '0.5rem' }}>
+              🎯 Career & Job Analyzer
+            </h1>
+            <p style={{ color: '#718096', fontSize: '1.1rem' }}>
+              Upload your resume to get career guidance and job matching analysis
+            </p>
+          </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '2rem', marginBottom: '2rem' }}>
+            {/* Job Description Input */}
+            <div>
+              <label style={{
+                display: 'block',
+                fontSize: '0.875rem',
+                fontWeight: '600',
+                color: '#374151',
+                marginBottom: '0.5rem'
+              }}>
+                <Search style={{ display: 'inline', marginRight: '0.5rem', width: '20px', height: '20px' }} />
+                Job Description (Optional)
+              </label>
+              <textarea
+                value={jobDescription}
+                onChange={(e) => setJobDescription(e.target.value)}
+                placeholder="Paste the complete job description here... (Leave empty for career analysis)"
+                style={{
+                  width: '100%',
+                  height: '200px',
+                  padding: '1rem',
+                  border: '2px solid #e5e7eb',
+                  borderRadius: '12px',
+                  fontSize: '0.875rem',
+                  resize: 'vertical',
+                  outline: 'none',
+                  transition: 'border-color 0.2s'
+                }}
+                onFocus={(e) => e.target.style.borderColor = '#667eea'}
+                onBlur={(e) => e.target.style.borderColor = '#e5e7eb'}
+              />
+            </div>
+
+            {/* Resume Input */}
+            <div>
+              <label style={{
+                display: 'block',
+                fontSize: '0.875rem',
+                fontWeight: '600',
+                color: '#374151',
+                marginBottom: '0.5rem'
+              }}>
+                <FileText style={{ display: 'inline', marginRight: '0.5rem', width: '20px', height: '20px' }} />
+                Your Resume (Required)
+              </label>
+              
+              {/* File Upload Section */}
+              <div style={{
+                border: '2px dashed #e5e7eb',
+                borderRadius: '12px',
+                padding: '1.5rem',
+                textAlign: 'center',
+                marginBottom: '1rem',
+                backgroundColor: '#f9fafb',
+                transition: 'border-color 0.2s'
+              }}>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept=".txt,.pdf,.doc,.docx"
+                  onChange={handleFileUpload}
+                  style={{ display: 'none' }}
+                />
+                
+                {uploadedFile ? (
+                  <div style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    backgroundColor: '#f0f9ff',
+                    padding: '0.75rem',
+                    borderRadius: '8px',
+                    border: '1px solid #0ea5e9'
+                  }}>
+                    <div style={{ display: 'flex', alignItems: 'center' }}>
+                      <FileText style={{ marginRight: '0.5rem', color: '#0ea5e9' }} />
+                      <span style={{ fontSize: '0.875rem', color: '#0c4a6e' }}>
+                        {uploadedFile.name}
+                      </span>
+                    </div>
+                    <button
+                      onClick={removeUploadedFile}
+                      style={{
+                        background: 'none',
+                        border: 'none',
+                        color: '#0ea5e9',
+                        cursor: 'pointer',
+                        padding: '0.25rem'
+                      }}
+                    >
+                      <X style={{ width: '16px', height: '16px' }} />
+                    </button>
+                  </div>
+                ) : (
+                  <div>
+                    <Upload style={{ 
+                      display: 'inline', 
+                      marginBottom: '0.5rem', 
+                      width: '32px', 
+                      height: '32px', 
+                      color: '#9ca3af' 
+                    }} />
+                    <div style={{ marginBottom: '0.5rem' }}>
+                      <button
+                        onClick={() => fileInputRef.current?.click()}
+                        disabled={isUploading}
+                        style={{
+                          backgroundColor: '#667eea',
+                          color: 'white',
+                          padding: '0.5rem 1rem',
+                          border: 'none',
+                          borderRadius: '6px',
+                          cursor: isUploading ? 'not-allowed' : 'pointer',
+                          fontSize: '0.875rem',
+                          fontWeight: '500',
+                          marginRight: '0.5rem'
+                        }}
+                      >
+                        {isUploading ? 'Uploading...' : 'Choose File'}
+                      </button>
+                      <span style={{ color: '#6b7280', fontSize: '0.875rem' }}>
+                        or drag and drop
+                      </span>
+                    </div>
+                    <p style={{ color: '#9ca3af', fontSize: '0.75rem', margin: 0 }}>
+                      PDF, DOC, DOCX, TXT (Max 5MB)
+                    </p>
+                  </div>
+                )}
+              </div>
+              
+              {/* Fallback textarea */}
+              <textarea
+                value={currentResume}
+                onChange={(e) => setCurrentResume(e.target.value)}
+                placeholder="Or paste your current resume here for analysis..."
+                style={{
+                  width: '100%',
+                  height: '150px',
+                  padding: '1rem',
+                  border: '2px solid #e5e7eb',
+                  borderRadius: '12px',
+                  fontSize: '0.875rem',
+                  resize: 'vertical',
+                  outline: 'none',
+                  transition: 'border-color 0.2s'
+                }}
+                onFocus={(e) => e.target.style.borderColor = '#667eea'}
+                onBlur={(e) => e.target.style.borderColor = '#e5e7eb'}
+              />
+            </div>
+          </div>
+
+          {/* Error Display */}
+          {error && (
+            <div style={{
+              backgroundColor: '#fef2f2',
+              border: '1px solid #fecaca',
+              borderRadius: '8px',
+              padding: '1rem',
+              marginBottom: '2rem',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.5rem'
+            }}>
+              <AlertCircle style={{ color: '#dc2626', width: '20px', height: '20px' }} />
+              <span style={{ color: '#dc2626' }}>{error}</span>
+            </div>
+          )}
+
+          <div style={{ textAlign: 'center', marginBottom: '2rem' }}>
+            <button
+              onClick={analyzeJobDescription}
+              disabled={isAnalyzing}
+              style={{
+                background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                color: 'white',
+                padding: '1rem 2rem',
+                borderRadius: '12px',
+                fontSize: '1rem',
+                fontWeight: '600',
+                border: 'none',
+                cursor: isAnalyzing ? 'not-allowed' : 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '0.5rem',
+                margin: '0 auto',
+                opacity: isAnalyzing ? 0.7 : 1,
+                transition: 'opacity 0.2s'
+              }}
+            >
+              <Search style={{ width: '20px', height: '20px' }} />
+              {isAnalyzing ? 'Analyzing...' : (jobDescription.trim() ? 'Analyze Job Match' : 'Analyze My Career')}
+            </button>
+          </div>
+
+          {analysis && (
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.5 }}
+            >
+              {/* Career Analysis */}
+              {analysis.career_analysis && (
+                <>
+                  <div style={{
+                    backgroundColor: '#f8fafc',
+                    borderRadius: '12px',
+                    padding: '1.5rem',
+                    marginBottom: '2rem'
+                  }}>
+                    <h3 style={{ fontSize: '1.25rem', fontWeight: '600', color: '#1a202c', marginBottom: '1rem' }}>
+                      🎯 Best Career Roles For You
+                    </h3>
+                    <div style={{ display: 'grid', gap: '1rem' }}>
+                      {analysis.career_analysis.best_fit_roles.map((role: any, index: number) => (
+                        <div key={index} style={{
+                          backgroundColor: 'white',
+                          border: '1px solid #e2e8f0',
+                          borderRadius: '8px',
+                          padding: '1rem'
+                        }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
+                            <h4 style={{ fontSize: '1.1rem', fontWeight: '600', color: '#2d3748' }}>
+                              {role.role}
+                            </h4>
+                            <span style={{
+                              backgroundColor: getConfidenceColor(role.match_score).split(' ')[0],
+                              color: getConfidenceColor(role.match_score).split(' ')[1],
+                              padding: '0.25rem 0.75rem',
+                              borderRadius: '20px',
+                              fontSize: '0.875rem',
+                              fontWeight: '500'
+                            }}>
+                              {role.match_score}% Match
+                            </span>
+                          </div>
+                          <p style={{ color: '#4a5568', marginBottom: '0.5rem' }}>{role.reason}</p>
+                          
+                          <div style={{ marginBottom: '0.5rem' }}>
+                            <strong style={{ color: '#2d3748' }}>✅ Your Current Skills:</strong>
+                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.25rem', marginTop: '0.25rem' }}>
+                              {role.current_skills.map((skill: string, i: number) => (
+                                <span key={i} style={{
+                                  backgroundColor: '#c6f6d5',
+                                  color: '#22543d',
+                                  padding: '0.25rem 0.5rem',
+                                  borderRadius: '4px',
+                                  fontSize: '0.75rem'
+                                }}>
+                                  {skill}
+                                </span>
+                              ))}
+                            </div>
+                          </div>
+                          
+                          <div style={{ marginBottom: '0.5rem' }}>
+                            <strong style={{ color: '#2d3748' }}>📚 Skills to Learn:</strong>
+                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.25rem', marginTop: '0.25rem' }}>
+                              {role.missing_skills.map((skill: string, i: number) => (
+                                <span key={i} style={{
+                                  backgroundColor: '#fed7d7',
+                                  color: '#742a2a',
+                                  padding: '0.25rem 0.5rem',
+                                  borderRadius: '4px',
+                                  fontSize: '0.75rem'
+                                }}>
+                                  {skill}
+                                </span>
+                              ))}
+                            </div>
+                          </div>
+                          
+                          <div>
+                            <strong style={{ color: '#2d3748' }}>🚀 Improvement Plan:</strong>
+                            <ul style={{ margin: '0.5rem 0', paddingLeft: '1.5rem' }}>
+                              {role.improvement_areas.map((area: string, i: number) => (
+                                <li key={i} style={{ color: '#4a5568', fontSize: '0.875rem', marginBottom: '0.25rem' }}>
+                                  {area}
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Skill Assessment */}
+                  <div style={{
+                    backgroundColor: '#f8fafc',
+                    borderRadius: '12px',
+                    padding: '1.5rem',
+                    marginBottom: '2rem'
+                  }}>
+                    <h3 style={{ fontSize: '1.25rem', fontWeight: '600', color: '#1a202c', marginBottom: '1rem' }}>
+                      📊 Your Skill Assessment
+                    </h3>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                      <div>
+                        <strong style={{ color: '#2d3748' }}>Technical Skills:</strong>
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.25rem', marginTop: '0.5rem' }}>
+                          {analysis.career_analysis.skill_assessment.technical_skills.map((skill: string, i: number) => (
+                            <span key={i} style={{
+                              backgroundColor: '#e6fffa',
+                              color: '#234e52',
+                              padding: '0.25rem 0.5rem',
+                              borderRadius: '4px',
+                              fontSize: '0.75rem'
+                            }}>
+                              {skill}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                      <div>
+                        <strong style={{ color: '#2d3748' }}>Soft Skills:</strong>
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.25rem', marginTop: '0.5rem' }}>
+                          {analysis.career_analysis.skill_assessment.soft_skills.map((skill: string, i: number) => (
+                            <span key={i} style={{
+                              backgroundColor: '#fef5e7',
+                              color: '#744210',
+                              padding: '0.25rem 0.5rem',
+                              borderRadius: '4px',
+                              fontSize: '0.75rem'
+                            }}>
+                              {skill}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                    <div style={{ marginTop: '1rem', textAlign: 'center' }}>
+                      <strong style={{ color: '#2d3748' }}>Experience Level: </strong>
+                      <span style={{
+                        backgroundColor: getConfidenceColor(analysis.career_analysis.skill_assessment.overall_score).split(' ')[0],
+                        color: getConfidenceColor(analysis.career_analysis.skill_assessment.overall_score).split(' ')[1],
+                        padding: '0.25rem 0.75rem',
+                        borderRadius: '20px',
+                        fontSize: '0.875rem',
+                        fontWeight: '500',
+                        marginLeft: '0.5rem'
+                      }}>
+                        {analysis.career_analysis.skill_assessment.experience_level}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Career Recommendations */}
+                  <div style={{
+                    backgroundColor: '#f8fafc',
+                    borderRadius: '12px',
+                    padding: '1.5rem',
+                    marginBottom: '2rem'
+                  }}>
+                    <h3 style={{ fontSize: '1.25rem', fontWeight: '600', color: '#1a202c', marginBottom: '1rem' }}>
+                      💡 Career Recommendations
+                    </h3>
+                    <ul style={{ margin: 0, paddingLeft: '1.5rem' }}>
+                      {analysis.career_analysis.career_recommendations.map((rec: string, i: number) => (
+                        <li key={i} style={{ color: '#4a5568', marginBottom: '0.5rem' }}>
+                          {rec}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+
+                  {/* Learning Path */}
+                  <div style={{
+                    backgroundColor: '#f8fafc',
+                    borderRadius: '12px',
+                    padding: '1.5rem'
+                  }}>
+                    <h3 style={{ fontSize: '1.25rem', fontWeight: '600', color: '#1a202c', marginBottom: '1rem' }}>
+                      🛤️ Your Learning Path
+                    </h3>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                      <div>
+                        <h4 style={{ color: '#2d3748', marginBottom: '0.5rem' }}>🎯 Short Term (1-3 months)</h4>
+                        <ul style={{ margin: 0, paddingLeft: '1.5rem' }}>
+                          {analysis.career_analysis.learning_path.short_term.map((item: string, i: number) => (
+                            <li key={i} style={{ color: '#4a5568', fontSize: '0.875rem', marginBottom: '0.25rem' }}>
+                              {item}
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                      <div>
+                        <h4 style={{ color: '#2d3748', marginBottom: '0.5rem' }}>🚀 Long Term (3-12 months)</h4>
+                        <ul style={{ margin: 0, paddingLeft: '1.5rem' }}>
+                          {analysis.career_analysis.learning_path.long_term.map((item: string, i: number) => (
+                            <li key={i} style={{ color: '#4a5568', fontSize: '0.875rem', marginBottom: '0.25rem' }}>
+                              {item}
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    </div>
+                  </div>
+                </>
+              )}
+
+              {/* Job Analysis */}
+              {analysis.job_analysis && (
+                <>
+                  <div style={{
+                    backgroundColor: '#f8fafc',
+                    borderRadius: '12px',
+                    padding: '1.5rem',
+                    marginBottom: '2rem',
+                    textAlign: 'center'
+                  }}>
+                    <h3 style={{ fontSize: '1.25rem', fontWeight: '600', color: '#1a202c', marginBottom: '1rem' }}>
+                      Job Match Score
+                    </h3>
+                    <div style={{
+                      fontSize: '3rem',
+                      fontWeight: 'bold',
+                      color: getConfidenceColor(analysis.job_analysis.match_score).split(' ')[0],
+                      marginBottom: '0.5rem'
+                    }}>
+                      {analysis.job_analysis.match_score}%
+                    </div>
+                    <p style={{ color: '#718096', margin: 0 }}>
+                      {analysis.job_analysis.match_score >= 80 ? 'Excellent Match!' : 
+                       analysis.job_analysis.match_score >= 60 ? 'Good Match' : 'Needs Improvement'}
+                    </p>
+                  </div>
+
+                  {/* Skills Match */}
+                  <div style={{
+                    backgroundColor: '#f8fafc',
+                    borderRadius: '12px',
+                    padding: '1.5rem',
+                    marginBottom: '2rem'
+                  }}>
+                    <h3 style={{ fontSize: '1.25rem', fontWeight: '600', color: '#1a202c', marginBottom: '1rem' }}>
+                      Skills Analysis
+                    </h3>
+                    <div style={{ marginBottom: '1rem' }}>
+                      <h4 style={{ color: '#2d3748', marginBottom: '0.5rem' }}>✅ Matched Skills</h4>
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
+                        {analysis.job_analysis.matched_skills.map((skill: string, index: number) => (
+                          <span key={index} style={{
+                            backgroundColor: '#c6f6d5',
+                            color: '#22543d',
+                            padding: '0.5rem 1rem',
+                            borderRadius: '20px',
+                            fontSize: '0.875rem'
+                          }}>
+                            {skill}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                    <div>
+                      <h4 style={{ color: '#2d3748', marginBottom: '0.5rem' }}>❌ Missing Skills</h4>
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
+                        {analysis.job_analysis.missing_skills.map((skill: string, index: number) => (
+                          <span key={index} style={{
+                            backgroundColor: '#fed7d7',
+                            color: '#742a2a',
+                            padding: '0.5rem 1rem',
+                            borderRadius: '20px',
+                            fontSize: '0.875rem'
+                          }}>
+                            {skill}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Recommendations */}
+                  <div style={{
+                    backgroundColor: '#f8fafc',
+                    borderRadius: '12px',
+                    padding: '1.5rem'
+                  }}>
+                    <h3 style={{ fontSize: '1.25rem', fontWeight: '600', color: '#1a202c', marginBottom: '1rem' }}>
+                      💡 Recommendations
+                    </h3>
+                    <ul style={{ margin: 0, paddingLeft: '1.5rem' }}>
+                      {analysis.job_analysis.recommendations.map((rec: string, index: number) => (
+                        <li key={index} style={{ color: '#4a5568', marginBottom: '0.5rem' }}>
+                          {rec}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                </>
+              )}
+            </motion.div>
+          )}
+        </motion.div>
+      </div>
+    </div>
+  )
+}

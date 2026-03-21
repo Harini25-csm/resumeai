@@ -4,7 +4,6 @@ import { useState, useEffect } from 'react'
 import { pdf } from '@react-pdf/renderer'
 import { Download, FileText, Eye, User, Loader2, Upload } from 'lucide-react'
 import ResumePreview from './ResumePreview'
-import JobOptimizationPanel from './JobOptimizationPanel'
 import { createClientInstance } from '@/lib/supabase'
 import { ResumeData } from '@/types/resume'
 
@@ -343,9 +342,6 @@ export default function ResumeEditor({ initialData, userId }: { initialData: any
         {/* Left Side - Editor (40%) */}
         <div className="w-2/5 bg-gray-50 overflow-y-auto border-r">
           <div className="p-6 space-y-8">
-            {/* Job Optimization Panel */}
-            <JobOptimizationPanel resumeData={data} onOptimized={handleOptimizedResume} />
-
             {/* Summary */}
             <div>
               <h3 className="text-lg font-semibold mb-3">Professional Summary</h3>

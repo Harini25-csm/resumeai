@@ -1,36 +1,63 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import { createClientInstance } from '@/lib/supabase'
-
-// You'll need to install these packages: npm install pdf-parse mammoth
-// For now, I'll create a basic version that you can enhance later
+import mammoth from 'mammoth'
 
 export async function POST(request: NextRequest) {
   try {
-    const { file, fileType, content } = await request.json()
-
-    if (!file || !fileType || !content) {
-      return NextResponse.json({ error: 'Missing file, fileType, or content' }, { status: 400 })
+    const formData = await request.formData()
+    const file = formData.get('file') as File
+    
+    if (!file) {
+      return NextResponse.json({ error: 'No file provided' }, { status: 400 })
     }
 
+    const bytes = await file.arrayBuffer()
+    
     let extractedText = ''
     
-    // Basic text extraction based on file type
-    if (fileType === 'pdf') {
-      // In production, you'd use pdf-parse library
-      extractedText = 'PDF content extracted - install pdf-parse package for full functionality'
-    } else if (fileType === 'docx') {
-      // In production, you'd use mammoth library
-      extractedText = 'DOCX content extracted - install mammoth package for full functionality'
-    } else {
-      extractedText = content
+    try {
+      // Extract text based on file type
+      if (file.type === 'text/plain') {
+        extractedText = new TextDecoder().decode(bytes)
+      } else if (file.type === 'application/pdf') {
+        // For PDF, we'll use a simple approach - in production, you can install pdf2pic or pdf-reader
+        // For now, let's try to extract basic text using a regex-based approach
+        const buffer = Buffer.from(bytes)
+        
+        // Simple text extraction from PDF (basic approach)
+        // PDF files have text objects that we can extract
+        const pdfString = buffer.toString('latin1')
+        
+        // Extract text between common PDF text operators
+        const textMatches = pdfString.match(/\(([^)]+)\)/g)
+        if (textMatches) {
+          extractedText = textMatches
+            .map(match => match.slice(1, -1)) // Remove parentheses
+            .join(' ')
+            .replace(/\\n/g, '\n') // Handle newlines
+            .replace(/\\t/g, ' ') // Handle tabs
+            .trim()
+        }
+        
+        // If no text found, provide a helpful message
+        if (!extractedText) {
+          extractedText = `PDF file "${file.name}" uploaded. The PDF appears to be complex or image-based. For best results, please copy and paste the text from your PDF directly into the text area, or save your PDF as a text file (.txt) and upload that instead.`
+        }
+      } else if (file.type === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document') {
+        // Use mammoth for DOCX text extraction
+        const result = await mammoth.extractRawText({ arrayBuffer: bytes })
+        extractedText = result.value
+      } else {
+        extractedText = `Unsupported file type: ${file.type}. Please use .txt, .pdf, or .docx files.`
+      }
+    } catch (parseError) {
+      console.error('File parsing error:', parseError)
+      extractedText = `Error parsing file: ${parseError instanceof Error ? parseError.message : 'Unknown error'}`
     }
 
-    // Basic resume parsing - in production, you'd send to Groq AI
-    const parsedData = parseResumeText(extractedText)
-
+    // Return the extracted text
     return NextResponse.json({
-      success: true,
-      data: parsedData
+      text: extractedText
     })
 
   } catch (error) {

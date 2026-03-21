@@ -35,7 +35,17 @@ export default function ProfilePage() {
   const supabase = createClientInstance()
 
   useEffect(() => {
-    fetchProfile()
+    // Check if user is authenticated before fetching profile
+    const checkAuth = async () => {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) {
+        router.push('/dashboard') // Redirect to dashboard instead of login
+        return
+      }
+      fetchProfile()
+    }
+    
+    checkAuth()
   }, [])
 
   const fetchProfile = async () => {

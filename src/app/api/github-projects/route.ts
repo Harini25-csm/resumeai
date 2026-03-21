@@ -8,15 +8,37 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Username is required' }, { status: 400 })
     }
 
-    const response = await fetch(`https://api.github.com/users/${username}/repos?sort=stars&per_page=6`)
-    
-    if (!response.ok) {
-      return NextResponse.json({ error: 'User not found or no repositories' }, { status: 404 })
-    }
+    let allRepos: any[] = []
+    let page = 1
+    let hasMore = true
 
-    const repos = await response.json()
+    // Fetch all repositories using pagination
+    while (hasMore) {
+      const response = await fetch(`https://api.github.com/users/${username}/repos?sort=stars&per_page=100&page=${page}`)
+      
+      if (!response.ok) {
+        if (page === 1) {
+          return NextResponse.json({ error: 'User not found or no repositories' }, { status: 404 })
+        }
+        break
+      }
+
+      const repos = await response.json()
+      
+      if (repos.length === 0) {
+        hasMore = false
+      } else {
+        allRepos = allRepos.concat(repos)
+        page++
+        
+        // Stop if we got less than 100 repos (last page)
+        if (repos.length < 100) {
+          hasMore = false
+        }
+      }
+    }
     
-    const formattedRepos = repos.map((repo: any) => ({
+    const formattedRepos = allRepos.map((repo: any) => ({
       id: repo.id,
       name: repo.name,
       description: repo.description || 'No description available',
