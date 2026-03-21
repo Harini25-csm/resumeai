@@ -23,6 +23,12 @@ export async function POST(req: Request) {
       mkdirSync(siteDir, { recursive: true })
     }
 
+    // Create app directory
+    const appDir = join(siteDir, 'app')
+    if (!existsSync(appDir)) {
+      mkdirSync(appDir, { recursive: true })
+    }
+
     // Create package.json for the portfolio site
     const packageJson = {
       name: 'portfolio-site',
@@ -38,6 +44,11 @@ export async function POST(req: Request) {
         react: '^18',
         'react-dom': '^18',
         'lucide-react': '^0.263.1'
+      },
+      devDependencies: {
+        'tailwindcss': '^3.3.0',
+        'autoprefixer': '^10.0.1',
+        'postcss': '^8.4.24'
       }
     }
 
@@ -45,8 +56,100 @@ export async function POST(req: Request) {
 
     // Generate portfolio HTML page
     const htmlContent = generatePortfolioHTML(portfolioData)
-    writeFileSync(join(siteDir, 'app', 'page.tsx'), generateNextJSPage(portfolioData))
+    writeFileSync(join(appDir, 'page.tsx'), generateNextJSPage(portfolioData))
     writeFileSync(join(siteDir, 'next.config.js'), generateNextConfig())
+
+    // Create layout.tsx
+    const layoutContent = `
+import './globals.css'
+import { Inter } from 'next/font/google'
+
+const inter = Inter({ subsets: ['latin'] })
+
+export const metadata = {
+  title: '${portfolioData.contact?.name || 'Portfolio'} - Professional Portfolio',
+  description: '${portfolioData.introduction || 'Professional Portfolio'}',
+}
+
+export default function RootLayout({
+  children,
+}: {
+  children: React.ReactNode
+}) {
+  return (
+    <html lang="en">
+      <body className={inter.className}>{children}</body>
+    </html>
+  )
+}
+    `
+    writeFileSync(join(appDir, 'layout.tsx'), layoutContent)
+
+    // Create globals.css
+    const globalsCSS = `
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --foreground-rgb: 0, 0, 0;
+  --background-start-rgb: 214, 219, 220;
+  --background-end-rgb: 255, 255, 255;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --foreground-rgb: 255, 255, 255;
+    --background-start-rgb: 0, 0, 0;
+    --background-end-rgb: 0, 0, 0;
+  }
+}
+
+body {
+  color: rgb(var(--foreground-rgb));
+  background: linear-gradient(
+      to bottom,
+      transparent,
+      rgb(var(--background-end-rgb))
+    )
+    rgb(var(--background-start-rgb));
+}
+    `
+    writeFileSync(join(appDir, 'globals.css'), globalsCSS)
+
+    // Create tailwind.config.js
+    const tailwindConfig = `
+/** @type {import('tailwindcss').Config} */
+module.exports = {
+  content: [
+    './pages/**/*.{js,ts,jsx,tsx,mdx}',
+    './components/**/*.{js,ts,jsx,tsx,mdx}',
+    './app/**/*.{js,ts,jsx,tsx,mdx}',
+  ],
+  theme: {
+    extend: {
+      backgroundImage: {
+        'gradient-radial': 'radial-gradient(var(--tw-gradient-stops))',
+        'gradient-conic':
+          'conic-gradient(from 180deg at 50% 50%, var(--tw-gradient-stops))',
+      },
+    },
+  },
+  plugins: [],
+}
+    `
+    writeFileSync(join(siteDir, 'tailwind.config.js'), tailwindConfig)
+
+    // Create postcss.config.js
+    const postcssConfig = `
+module.exports = {
+  plugins: {
+    tailwindcss: {},
+    autoprefixer: {},
+  },
+}
+    `
+    writeFileSync(join(siteDir, 'postcss.config.js'), postcssConfig)
 
     // Instructions for manual deployment
     const instructions = `
