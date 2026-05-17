@@ -1,9 +1,19 @@
 import { NextRequest, NextResponse } from 'next/server'
 import Groq from 'groq-sdk'
 
-const groq = new Groq({ apiKey: process.env.GROQ_API_KEY })
+// Prevent static generation
+export const dynamic = 'force-dynamic'
 
 export async function POST(request: NextRequest) {
+  // Check if API key is available
+  if (!process.env.GROQ_API_KEY) {
+    return NextResponse.json({ 
+      error: 'GROQ_API_KEY is not configured',
+      details: 'Please add GROQ_API_KEY to your environment variables'
+    }, { status: 500 })
+  }
+
+  const groq = new Groq({ apiKey: process.env.GROQ_API_KEY })
   try {
     const body = await request.json()
     const { jobDescription, currentResume, requestType = 'job_analysis' } = body
